@@ -1,0 +1,13 @@
+{
+  "name": "小记",
+  "short_name": "小记",
+  "description": "青沐的每日小记",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F5F4EE",
+  "theme_color": "#F5F4EE",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
