@@ -618,7 +618,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v1.9 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v1.9.1 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -1606,9 +1606,9 @@ function dtLabel(w){
   return DTNAME[w.dt]||'';
 }
 const WHINTS={
-  mom:'可选日期条件＋时段：工作日的句子只在周一到周五出现；特定日期的句子每年那一天独占全场。95/5 未显示优先的规则照旧。',
-  essay:'看到好句子随手存进来，和「妈咪说」一起参与抽取，同样支持日期条件和时段。',
-  open:'开屏语单独管理，不参与话语集抽取。选好时间段再添加，深夜的句子只在深夜出现。'
+  mom:'可选日期条件＋时段，特定日期当天独占。点已存的卡片可以修改条件。',
+  essay:'和「妈咪说」一起参与抽取，同样支持日期条件和时段。点卡片可修改条件。',
+  open:'开屏语单独管理，不参与话语集抽取。深夜的句子只在深夜出现，点卡片可改时段。'
 };
 function renderWords(){
   $('#wHint').textContent=WHINTS[wTab];
@@ -1626,7 +1626,7 @@ function renderWords(){
   } else { wdt.style.display='none'; $('#wDateWrap').style.display='none'; }
   const arr=D.words[wTab];
   $('#wList').innerHTML=arr.length? arr.map((w,i)=>`
-    <div class="wcard"><p>${esc(w.t)}${w.t2?`<br><span style="font-size:12.5px;color:var(--sub)">${esc(w.t2)}</span>`:''}</p>
+    <div class="wcard" data-wi="${i}" style="cursor:pointer"><p>${esc(w.t)}${w.t2?`<br><span style="font-size:12.5px;color:var(--sub)">${esc(w.t2)}</span>`:''}</p>
       <div class="wfoot"><span>${esc(w.d||'')}</span>
         ${dtLabel(w)?`<span>${dtLabel(w)}</span>`:''}
         ${(w.p&&w.p!=='all')?`<span>${PERNAME[w.p]}</span>`:''}
@@ -1634,9 +1634,41 @@ function renderWords(){
       </div>
       <button class="wdel" data-i="${i}">×</button>
     </div>`).join('') : '<p class="empty">还没有内容，添加第一句吧</p>';
-  $$('#wList .wdel').forEach(b=>b.addEventListener('click',()=>{
+  $$('#wList .wdel').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
     if(confirm('删除这一句？')){ D.words[wTab].splice(+b.dataset.i,1); save(); renderWords(); }
   }));
+  $$('#wList .wcard').forEach(el=>el.addEventListener('click',()=>editWordCond(+el.dataset.wi)));
+}
+function editWordCond(idx){
+  const w=D.words[wTab][idx]; if(!w) return;
+  const isOpen=wTab==='open';
+  let edt=w.dt||'any', eper=w.p||'all';
+  function draw(){
+    let h=`<h5>「${esc(w.t.length>16?w.t.slice(0,16)+'…':w.t)}」 · 修改条件</h5>`;
+    if(!isOpen){
+      h+=`<label>日期条件</label><div class="catwrap" style="margin-bottom:10px">`+DTS.map(([k,n])=>`<button class="chip${k===edt?' on':''}" data-edt="${k}">${n}</button>`).join('')+`</div>`;
+      if(edt==='date') h+=`<input type="date" id="eDate" value="${TODAY.slice(0,4)}-${w.date||TODAY.slice(5)}">`;
+    }
+    h+=`<label>时段</label><div class="catwrap" style="margin-bottom:12px">`+PERIODS.map(([k,n])=>`<button class="chip${k===eper?' on':''}" data-eper="${k}">${n}</button>`).join('')+`</div>`;
+    h+=`<button class="act" data-a="save" style="background:var(--sage);color:#FBFBF6;text-align:center">保存修改</button>`;
+    openMini(h);
+    mini.querySelectorAll('[data-edt]').forEach(b=>b.addEventListener('click',()=>{ edt=b.dataset.edt; draw(); }));
+    mini.querySelectorAll('[data-eper]').forEach(b=>b.addEventListener('click',()=>{ eper=b.dataset.eper; draw(); }));
+    mini.querySelector('[data-a="save"]').addEventListener('click',()=>{
+      if(!isOpen){
+        w.dt=edt;
+        if(edt==='date'){
+          const dv=$('#eDate').value;
+          if(!dv){ toast('特定日期要选个日子呀'); return; }
+          w.date=dv.slice(5);
+        } else delete w.date;
+      }
+      w.p=eper;
+      save(); closeMini(); renderWords(); toast('条件已更新');
+    });
+  }
+  draw();
 }
 $$('#wTabs .pill').forEach(p=>p.addEventListener('click',()=>{
   $$('#wTabs .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on');
