@@ -440,7 +440,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       <input class="edin" id="nTitle2" placeholder="无题" maxlength="40">
       <div class="edrow">
         <input class="edin" id="nWx" placeholder="天气（可不填）" maxlength="8">
-        <input class="edin" id="nMood" placeholder="心情 −100~100（可不填）" inputmode="numeric">
+        <input class="edin" id="nMood" placeholder="心情 0~100（可不填）" inputmode="numeric">
+        <button id="nSign" style="flex:none;width:46px;min-height:44px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;color:var(--sub);font-size:17px;font-family:var(--serif);cursor:pointer">±</button>
       </div>
       <div class="seclabel"><span>正文 · 支持 MARKDOWN</span></div>
       <textarea id="nBody2" placeholder="想写多长写多长…&#10;支持 # 标题、**加粗**、*斜体*、&gt; 引用、``` 代码块 ```、- 列表"></textarea>
@@ -1530,12 +1531,18 @@ function openEditor(type,entry,mode){
   $('#nTitle2').value=v?v.title||'':'';
   $('#nWx').value=v?v.wx||'':'';
   $('#nMood').value=(v&&(v.mood===0||v.mood))?v.mood:'';
+  $('#nSign').style.color=String($('#nMood').value).startsWith('-')?'var(--mood-negink)':'var(--sub)';
   $('#nBody2').value=v?v.body:'';
   $('#nDel2').style.display=entry?'':'none';
   setEdMode(mode||'edit');
   go('scr-nedit');
 }
 $('#nedBack').addEventListener('click',()=>{ go('scr-notes'); renderNotes(); });
+$('#nSign').addEventListener('click',()=>{
+  const m=$('#nMood');
+  m.value=m.value.startsWith('-')?m.value.slice(1):('-'+m.value);
+  $('#nSign').style.color=m.value.startsWith('-')?'var(--mood-negink)':'var(--sub)';
+});
 $('#fabNote').addEventListener('click',()=>{
   openMini(`<h5>写哪一类？</h5><div class="catwrap">`+D.notes.types.map(t=>`<button class="chip" data-t="${t.id}" style="color:${ntColor(t)}">${esc(t.n)}${t.locked?' 🔒':''}</button>`).join('')+`</div>`);
   mini.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',async()=>{
