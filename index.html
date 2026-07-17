@@ -1262,7 +1262,12 @@ function moodSeries(){
     else { if(e.date.startsWith(y)) key=e.date.slice(0,7); }
     if(key) (buckets[key]=buckets[key]||[]).push(e.v);
   });
-  return Object.keys(buckets).sort().map(k=>({label:moodRange==='m'?fmtMD(k):(+k.slice(5,7))+'月', v:Math.round(buckets[k].reduce((a,b)=>a+b,0)/buckets[k].length)}));
+  return Object.keys(buckets).sort().map(k=>{
+    const arr=buckets[k];
+    return {label:moodRange==='m'?fmtMD(k):(+k.slice(5,7))+'月',
+      v:Math.round(arr.reduce((a,b)=>a+b,0)/arr.length),
+      lo:Math.min.apply(null,arr), hi:Math.max.apply(null,arr)};
+  });
 }
 function drawMood(){
   const svg=$('#moodSvg'); const W=340,H=170,P=14;
@@ -1280,26 +1285,37 @@ function drawMood(){
   const n=data.length;
   const x=i=>P+i*(W-2*P)/(n-1);
   const y=v=>H/2-(v/100)*(H/2-P);
-  pts=data.map((d,i)=>({x:x(i),y:y(d.v),v:d.v,label:d.label}));
-  let d='M '+pts[0].x+' '+pts[0].y;
-  for(let i=0;i<n-1;i++){
-    const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(n-1,i+2)];
-    d+=` C ${p1.x+(p2.x-p0.x)/6} ${p1.y+(p2.y-p0.y)/6}, ${p2.x-(p3.x-p1.x)/6} ${p2.y-(p3.y-p1.y)/6}, ${p2.x} ${p2.y}`;
+  pts=data.map((d,i)=>({x:x(i),y:y(d.v),v:d.v,lo:d.lo,hi:d.hi,label:d.label}));
+  function smooth(ps){
+    let d='M '+ps[0].x+' '+ps[0].y;
+    for(let i=0;i<ps.length-1;i++){
+      const p0=ps[Math.max(0,i-1)],p1=ps[i],p2=ps[i+1],p3=ps[Math.min(ps.length-1,i+2)];
+      d+=` C ${p1.x+(p2.x-p0.x)/6} ${p1.y+(p2.y-p0.y)/6}, ${p2.x-(p3.x-p1.x)/6} ${p2.y-(p3.y-p1.y)/6}, ${p2.x} ${p2.y}`;
+    }
+    return d;
   }
+  const d=smooth(pts);
   const css=getComputedStyle(document.body);
   const sage=css.getPropertyValue('--sage').trim(), faint=css.getPropertyValue('--faint').trim(), ink=css.getPropertyValue('--sub').trim();
   const last=pts[n-1];
-  let mn=0,mx=0; data.forEach((p,i)=>{ if(p.v<data[mn].v)mn=i; if(p.v>data[mx].v)mx=i; });
+  // range band (day's min~max)
+  let band='';
+  if(data.some(p=>p.lo!==p.hi)){
+    const hiPts=data.map((p,i)=>({x:x(i),y:y(p.hi)}));
+    const loPts=data.map((p,i)=>({x:x(i),y:y(p.lo)})).reverse();
+    band=`<path d="${smooth(hiPts)} ${smooth(loPts).replace(/^M/,'L')} Z" fill="${sage}" opacity=".16"/>`;
+  }
+  let mn=0,mx=0; data.forEach((p,i)=>{ if(p.lo<data[mn].lo)mn=i; if(p.hi>data[mx].hi)mx=i; });
   svg.innerHTML=`
     <defs><linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${sage}" stop-opacity=".28"/><stop offset="1" stop-color="${sage}" stop-opacity="0"/>
+      <stop offset="0" stop-color="${sage}" stop-opacity=".22"/><stop offset="1" stop-color="${sage}" stop-opacity="0"/>
     </linearGradient></defs>
     <line x1="${P}" y1="${H/2}" x2="${W-P}" y2="${H/2}" stroke="${faint}" stroke-width="1" stroke-dasharray="3 5" opacity=".7"/>
-    <path d="${d} L ${last.x} ${H/2} L ${pts[0].x} ${H/2} Z" fill="url(#mg)"/>
+    ${band||`<path d="${d} L ${last.x} ${H/2} L ${pts[0].x} ${H/2} Z" fill="url(#mg)"/>`}
     <path d="${d}" fill="none" stroke="${sage}" stroke-width="2" stroke-linecap="round"/>
     <circle cx="${last.x}" cy="${last.y}" r="4" fill="${sage}"/>
-    <text x="${pts[mx].x}" y="${Math.max(10,pts[mx].y-8)}" font-size="10" fill="${ink}" text-anchor="middle" font-family="Georgia,serif">${data[mx].v>0?'+':''}${data[mx].v}</text>
-    <text x="${pts[mn].x}" y="${Math.min(H-4,pts[mn].y+15)}" font-size="10" fill="${ink}" text-anchor="middle" font-family="Georgia,serif">${data[mn].v>0?'+':''}${data[mn].v}</text>
+    <text x="${pts[mx].x}" y="${Math.max(10,y(data[mx].hi)-7)}" font-size="10" fill="${ink}" text-anchor="middle" font-family="Georgia,serif">${data[mx].hi>0?'+':''}${data[mx].hi}</text>
+    <text x="${pts[mn].x}" y="${Math.min(H-4,y(data[mn].lo)+14)}" font-size="10" fill="${ink}" text-anchor="middle" font-family="Georgia,serif">${data[mn].lo>0?'+':''}${data[mn].lo}</text>
     <circle id="hoverDot" r="4.5" fill="none" stroke="${sage}" stroke-width="2" style="display:none"/>
     <line id="hoverLine" y1="${P}" y2="${H-P}" stroke="${faint}" stroke-width="1" style="display:none"/>`;
 }
@@ -1317,7 +1333,7 @@ function moodHover(e){
   tip.style.opacity=1;
   tip.style.left=(best.x/340*r.width)+'px';
   tip.style.top=(best.y/170*r.height+16)+'px';
-  tip.textContent=`${best.label} · ${best.v>0?'+':''}${best.v}`;
+  tip.textContent=`${best.label} · 均 ${best.v>0?'+':''}${best.v}`+((best.lo!==undefined&&best.lo!==best.hi)?`（${best.lo>0?'+':''}${best.lo}~${best.hi>0?'+':''}${best.hi}）`:'');
 }
 moodSvgEl.addEventListener('pointermove',moodHover);
 moodSvgEl.addEventListener('pointerdown',moodHover);
