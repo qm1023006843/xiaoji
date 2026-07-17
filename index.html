@@ -618,7 +618,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v1.8 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v1.9 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -658,7 +658,9 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
     <button class="pill on" data-t="once">当日</button>
     <button class="pill" data-t="daily">循环</button>
     <button class="pill" data-t="span">跨时段</button>
+    <button class="pill" data-t="idle">长期</button>
   </span>
+  <p class="futnote" id="idleNote" style="display:none">🛋 长期任务：没有期限，不会过期，躺到你完成为止</p>
   <div id="tFreqWrap" style="display:none">
     <label>循环方式</label>
     <span class="pills" id="freqPills">
@@ -945,7 +947,7 @@ function virtualTasks(){
   D.tasks.forEach(t=>{
     if(t.type==='once' && t.date===TODAY) out.push({kind:'task',...t});
     if(t.type==='span' && t.start<=TODAY && t.end>=TODAY) out.push({kind:'task',...t});
-    if(t.reward && t.date===TODAY) {} // rewards are once-type, covered above
+    if(t.type==='idle') out.push({kind:'task',...t});
   });
   return out;
 }
@@ -956,6 +958,7 @@ function taskEl(v){
   let meta=tagHTML(v.cat, v.reward?'奖励':null);
   if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
   else if(v.type==='span') meta+=`<span>跨时段 · 至 ${fmtMD(v.end)}</span>`;
+  else if(v.type==='idle') meta+=`<span>🛋 长期 · 不催</span>`;
   else if(!v.reward) meta+=`<span>今日 · 一次性</span>`;
   let prog='';
   if(v.type==='span'){
@@ -1097,6 +1100,7 @@ function syncSheetType(){
   $('#tDateWrap').style.display=sheetType==='once'?'':'none';
   $('#tSpanWrap').style.display=sheetType==='span'?'':'none';
   $('#tFreqWrap').style.display=sheetType==='daily'?'':'none';
+  $('#idleNote').style.display=sheetType==='idle'?'block':'none';
   syncFreq(); checkFut();
 }
 function checkFut(){ $('#futNote').style.display=($('#tDate').value>TODAY)?'block':'none'; }
@@ -1123,6 +1127,9 @@ $('#tSave').addEventListener('click',()=>{
     if(!s||!e||e<s){ toast('检查一下起止日期～'); return; }
     D.tasks.push({id:uid(),name,cat:sheetCat,type:'span',start:s,end:e});
     toast('跨时段任务已创建');
+  } else if(sheetType==='idle'){
+    D.tasks.push({id:uid(),name,cat:sheetCat,type:'idle',created:TODAY});
+    toast('长期任务已创建，不催你');
   } else {
     const dt=$('#tDate').value||TODAY;
     D.tasks.push({id:uid(),name,cat:sheetCat,type:'once',date:dt});
