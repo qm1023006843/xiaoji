@@ -646,7 +646,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.1 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v2.2 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -699,6 +699,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       <label>哪种情况？</label>
       <div class="catgrid" id="tFlowVarChips"></div>
     </div>
+    <label>备注 · 这一单是谁的（可不填）</label>
+    <input type="text" id="tFlowNote" placeholder="如：七附院小狗 20万" maxlength="30">
   </div>
   <div id="tFreqWrap" style="display:none">
     <label>循环方式</label>
@@ -986,20 +988,22 @@ function parseFlow(body){
     const m=ln.match(/^[\[【](.+?)[\]】]$/);
     if(m){ cur={n:m[1].trim(),steps:[]}; variants.push(cur); continue; }
     if(!cur){ cur={n:'',steps:[]}; variants.push(cur); }
-    const opt=/[?？]$/.test(ln);
-    const nm=ln.replace(/[?？]$/,'').trim();
-    if(nm) cur.steps.push({n:nm,opt});
+    const flags=(ln.match(/[?？!！]+$/)||[''])[0];
+    const opt=/[?？]/.test(flags), ask=/[!！]/.test(flags);
+    const nm=ln.replace(/[?？!！]+$/,'').trim();
+    if(nm) cur.steps.push({n:nm,opt,ask});
   }
   return variants.filter(v=>v.steps.length);
 }
-function spawnFlow(tm,varIdx){
+function spawnFlow(tm,varIdx,note){
   const vs=parseFlow(tm.body);
   const vv=vs[Math.min(varIdx||0,vs.length-1)];
   if(!vv) return null;
-  const f={id:uid(),tmpl:tm.id,n:tm.n,cat:tm.cat,variant:vs.length>1?vv.n:'',steps:vv.steps.map(s=>({n:s.n,opt:s.opt,done:false,skip:false,ts:null,logId:null})),started:TODAY};
+  const f={id:uid(),tmpl:tm.id,n:tm.n,cat:tm.cat,note:(note||'').trim(),variant:vs.length>1?vv.n:'',steps:vv.steps.map(s=>({n:s.n,opt:s.opt,ask:s.ask,remark:'',done:false,skip:false,ts:null,logId:null})),started:TODAY};
   D.flows.inst.push(f);
   return f;
 }
+function flogName(f,s){ return `${f.n}${f.note?'（'+f.note+'）':''}｜${s.n}${s.remark?'：'+s.remark:''}`; }
 function ensureFlows(){
   let changed=false;
   D.flows.tmpl.forEach(t=>{
@@ -1017,7 +1021,7 @@ function virtualTasks(){
     const ws=tplWindow(p);
     if(!ws) return;
     const done=D.log.some(l=>l.tid===p.id && l.date>=ws);
-    if(!done) out.push({kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily',freqLabel:tplFreqLabel(p)});
+    if(!done) out.push({kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily',freqLabel:tplFreqLabel(p),ws});
   });
   D.tasks.forEach(t=>{
     if(t.type==='once' && t.date===TODAY) out.push({kind:'task',...t});
@@ -1041,7 +1045,7 @@ function taskEl(v){
     el.innerHTML=`
       ${useBtnF?'':ckStr}
       <div class="tmain">
-        <div class="tname">${esc(f.n)}${f.variant?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.variant)}</span>`:''}</div>
+        <div class="tname">${esc(f.n)}${f.note?`<span style="color:var(--sub)"> · ${esc(f.note)}</span>`:''}${f.variant?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.variant)}</span>`:''}</div>
         <div class="tmeta">${tagHTML(f.cat)}<span>流程 · 第 ${Math.min(doneN+1,total)} / ${total} 步</span></div>
         ${cs?`<div style="font-size:13px;color:var(--sage-deep);margin-top:6px">▸ ${esc(cs.n)}${cs.opt?'<span style="color:var(--faint);font-size:11px">（可跳过）</span>':''}</div>`:''}
         <div class="tprog"><div class="bar2"><i style="width:${Math.round(doneN/total*100)}%"></i></div></div>
@@ -1112,7 +1116,7 @@ function completeVirtual(el,v){
   setTimeout(()=>{
     el.classList.add('leave');
     // data
-    const entry={id:uid(),name:v.name,cat:v.reward?null:v.cat,ts:tsNow(),date:TODAY,src:v.type||'once'};
+    const entry={id:uid(),name:v.name,cat:v.reward?null:v.cat,ts:tsNow(),date:TODAY,src:v.type||'once',cd:v.kind==='tpl'?v.ws:(v.created||v.start||TODAY)};
     if(v.kind==='tpl') entry.tid=v.id;
     D.log.push(entry);
     if(v.kind==='task') D.tasks=D.tasks.filter(t=>t.id!==v.id);
@@ -1123,14 +1127,28 @@ function completeVirtual(el,v){
 }
 function completeFlowStep(el,f){
   const i=f.steps.findIndex(s=>!s.done&&!s.skip);
-  if(i<0) return;
-  if(el.classList.contains('done')) return;
+  if(i<0||el.classList.contains('done')) return;
+  const s=f.steps[i];
+  if(s.ask){
+    openMini(`<h5>${esc(s.n)} · 需要备注一下</h5>
+      <input id="stepRk" class="edin" style="background:var(--bg);margin-bottom:10px" placeholder="发给谁 / 单号 / 金额…（可留空）" maxlength="40" value="${esc(s.remark||'')}">
+      <button class="act" data-a="go" style="background:var(--sage);color:#FBFBF6;text-align:center">完成此步</button>`);
+    mini.querySelector('[data-a="go"]').addEventListener('click',()=>{
+      s.remark=$('#stepRk').value.trim();
+      closeMini();
+      doFlowStep(el,f,i);
+    });
+    return;
+  }
+  doFlowStep(el,f,i);
+}
+function doFlowStep(el,f,i){
   el.classList.add('done');
   setTimeout(()=>{
     const s=f.steps[i];
     s.done=true; s.ts=tsNow();
     const lid=uid(); s.logId=lid;
-    D.log.push({id:lid,name:`${f.n}｜${s.n}`,cat:f.cat,ts:s.ts,date:TODAY,src:'flow'});
+    D.log.push({id:lid,name:flogName(f,s),cat:f.cat,ts:s.ts,date:TODAY,cd:f.started,src:'flow'});
     const rest=f.steps.some(x=>!x.done&&!x.skip);
     save();
     if(!rest){
@@ -1149,17 +1167,34 @@ function flowActions(f){
   const idx=f.steps.findIndex(s=>!s.done&&!s.skip);
   const cs=idx>=0?f.steps[idx]:null;
   const lastDone=f.steps.map((s,i)=>s.done?i:-1).filter(i=>i>=0).pop();
-  let h=`<h5>${esc(f.n)}${f.variant?' · '+esc(f.variant):''} · 步骤明细</h5>
+  let h=`<h5>${esc(f.n)}${f.note?'（'+esc(f.note)+'）':''}${f.variant?' · '+esc(f.variant):''} · 步骤明细<br><small style="font-weight:400">点已完成的步骤可补写备注</small></h5>
     <div style="max-height:36dvh;overflow-y:auto;margin-bottom:10px">`+
-    f.steps.map((s,i)=>`<div style="display:flex;gap:9px;font-size:13px;padding:7px 4px;border-bottom:1px solid var(--line);${i===idx?'color:var(--sage-deep);font-weight:600':''}">
+    f.steps.map((s,i)=>`<div data-fsi="${i}" style="display:flex;gap:9px;font-size:13px;padding:7px 4px;border-bottom:1px solid var(--line);${i===idx?'color:var(--sage-deep);font-weight:600':''}${s.done?';cursor:pointer':''}">
       <span style="flex:none;width:16px">${s.done?'✓':s.skip?'⤼':(i===idx?'▸':'○')}</span>
-      <span style="flex:1">${esc(s.n)}${s.opt?'<small style="color:var(--faint)">（可跳过）</small>':''}</span>
+      <span style="flex:1">${esc(s.n)}${s.opt?'<small style="color:var(--faint)">（可跳过）</small>':''}${s.remark?`<br><small style="color:var(--sub)">备注：${esc(s.remark)}</small>`:''}</span>
       <span style="flex:none;color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums">${s.done&&s.ts?fmtDT(s.ts):(s.skip?'已跳过':'')}</span>
     </div>`).join('')+`</div>`;
+  h+=`<button class="act" data-a="note">编辑流程备注${f.note?'（'+esc(f.note)+'）':''}</button>`;
   if(cs&&cs.opt) h+=`<button class="act" data-a="skip">跳过当前步 · ${esc(cs.n)}</button>`;
   if(lastDone!==undefined) h+=`<button class="act" data-a="undo">撤销上一步 · ${esc(f.steps[lastDone].n)}（红冲）</button>`;
   h+=`<button class="act danger" data-a="drop">放弃流程（已完成的步骤保留记录）</button>`;
   openMini(h);
+  mini.querySelectorAll('[data-fsi]').forEach(row=>row.addEventListener('click',()=>{
+    const s=f.steps[+row.dataset.fsi];
+    if(!s.done) return;
+    const nr=prompt(`「${s.n}」的备注（清空=删除备注）`,s.remark||'');
+    if(nr===null) return;
+    s.remark=nr.trim();
+    if(s.logId){ const l=D.log.find(x=>x.id===s.logId); if(l) l.name=flogName(f,s); }
+    save(); closeMini(); renderTasks(); toast(s.remark?'备注已更新，记录已同步':'备注已清除');
+  }));
+  const nt=mini.querySelector('[data-a="note"]');
+  nt.addEventListener('click',()=>{
+    const nn=prompt('流程备注（这一单是谁的）',f.note||'');
+    if(nn===null) return;
+    f.note=nn.trim();
+    save(); closeMini(); renderTasks(); toast('流程备注已更新，之后完成的步骤会带上它');
+  });
   const sk=mini.querySelector('[data-a="skip"]');
   if(sk) sk.addEventListener('click',()=>{
     cs.skip=true;
@@ -1252,7 +1287,7 @@ function renderFlowChoices(){
 }
 function openSheet(){
   sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1; sheetTmpl=null; sheetVar=0;
-  $('#tName').value=''; $('#tDate').value=TODAY;
+  $('#tName').value=''; $('#tFlowNote').value=''; $('#tDate').value=TODAY;
   $('#tStart').value=TODAY; $('#tEnd').value=addDays(TODAY,29);
   $('#tN').value=3; $('#tMd').value=Math.min(28,+TODAY.slice(8,10));
   $$('#tTypePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.t==='once'));
@@ -1307,10 +1342,10 @@ $('#tSave').addEventListener('click',()=>{
   if(sheetType==='flow'){
     const tm=D.flows.tmpl.find(t=>t.id===sheetTmpl);
     if(!tm){ toast('先选一个流程模板'); return; }
-    const f=spawnFlow(tm,sheetVar);
+    const f=spawnFlow(tm,sheetVar,$('#tFlowNote').value);
     if(!f){ toast('这个模板还没有步骤'); return; }
     save(); closeSheet(); renderTasks();
-    toast(`流程已开始 · ${tm.n}${f.variant?'（'+f.variant+'）':''}`);
+    toast(`流程已开始 · ${tm.n}${f.note?'（'+f.note+'）':''}`);
     return;
   }
   const name=$('#tName').value.trim();
@@ -1325,14 +1360,14 @@ $('#tSave').addEventListener('click',()=>{
   } else if(sheetType==='span'){
     const s=$('#tStart').value, e=$('#tEnd').value;
     if(!s||!e||e<s){ toast('检查一下起止日期～'); return; }
-    D.tasks.push({id:uid(),name,cat:sheetCat,type:'span',start:s,end:e});
+    D.tasks.push({id:uid(),name,cat:sheetCat,type:'span',start:s,end:e,created:TODAY});
     toast('跨时段任务已创建');
   } else if(sheetType==='idle'){
     D.tasks.push({id:uid(),name,cat:sheetCat,type:'idle',created:TODAY});
     toast('长期任务已创建，不催你');
   } else {
     const dt=$('#tDate').value||TODAY;
-    D.tasks.push({id:uid(),name,cat:sheetCat,type:'once',date:dt});
+    D.tasks.push({id:uid(),name,cat:sheetCat,type:'once',date:dt,created:TODAY});
     toast(dt>TODAY?`预制成功，${fmtMD(dt)}见`:'任务已创建');
   }
   save(); closeSheet(); renderTasks();
@@ -2102,7 +2137,7 @@ function renderRecords(){
     $('#recListLabel').textContent='完成清单 · 点一条可修改类型';
     const fl=recF==='all'?logs:logs.filter(l=>l.cat===recF);
     $('#recList').innerHTML=fl.length? fl.slice().reverse().slice(0,60).map(l=>
-      `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span>${tagHTML(l.cat)}<span class="tm">${fmtDT(l.ts)}</span></div>`).join('')
+      `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span>${tagHTML(l.cat)}<span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`).join('')
       : '<p class="empty">这里还空着</p>';
     $$('#recList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderRecords)));
   }
@@ -2121,7 +2156,7 @@ $('#recExport').addEventListener('click',()=>{
   } else {
     const fl=recF==='all'?logs:logs.filter(l=>l.cat===recF);
     title=`小记 · 完成记录（${recLabel()}${recF==='all'?'':' · '+catOf(recF).n}）`;
-    rows=fl.map(l=>`${fmtDT(l.ts)}　${l.name}${(recF==='all'&&l.cat)?'（'+catOf(l.cat).n+'）':''}`);
+    rows=fl.map(l=>`${(l.cd&&l.cd!==l.date)?'建'+l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+' → ':''}${fmtDT(l.ts)}　${l.name}${(recF==='all'&&l.cat)?'（'+catOf(l.cat).n+'）':''}`);
   }
   if(!rows.length){ toast('这个视图是空的，没什么可导'); return; }
   const text=title+'\n'+rows.join('\n')+'\n—— 共 '+rows.length+' 件';
