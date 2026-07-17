@@ -503,7 +503,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <div id="wDateWrap" style="display:none;margin:0 0 10px"><input type="date" id="wDate" class="edin" style="background:var(--card)"><p class="whint" style="margin:6px 2px 0">按「月-日」匹配，每年这一天都会出现，且当天只显示特定日期的句子</p></div>
         <div class="chips" id="wPeriod" style="display:none;margin:0 0 10px"></div>
         <div class="addrow" style="margin:0 0 8px"><input id="wInput" placeholder="第一行（中文或英文）" maxlength="120"></div>
-        <div class="addrow" style="margin:0"><input id="wInput2" placeholder="第二行（可不填 · 双语时用）" maxlength="120"><button id="wAdd">添加</button></div>
+        <div class="addrow" style="margin:0 0 8px"><input id="wInput2" placeholder="第二行（可不填 · 双语时用）" maxlength="120"><button id="wAdd">添加</button></div>
+        <button class="chip" id="wBatch">⎘ 批量粘贴导入（一行一句）</button>
       </div>
       <div id="wList"></div>
       <div style="height:40px"></div>
@@ -535,7 +536,10 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       <div class="seclabel"><span>按类型 · BY TYPE</span></div>
       <div id="catStats"></div>
       <div class="chips" id="recChips" style="margin-top:22px"></div>
-      <button class="chip" id="recExport" style="margin-top:12px">⎘ 导出此视图（可直接粘贴）</button>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="chip" id="recExport">⎘ 导出此视图</button>
+        <button class="chip" id="recReport">📄 生成月报</button>
+      </div>
       <div class="rec-day" id="recListLabel">完成清单</div>
       <div id="recList"></div>
     </div>
@@ -556,6 +560,21 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <input type="text" id="setNick" maxlength="12" style="width:100%">
       </div>
       <div class="setcard">
+        <h4>纪念日</h4>
+        <p class="desc">最近的一个会显示在任务页日期旁；每年重复的（生日、纪念日）年年倒数，一次性的到期后自动消失</p>
+        <div id="anniList"></div>
+        <div class="addrow" style="margin-top:10px"><input id="anniName" placeholder="名称" maxlength="10" style="flex:1"><input type="date" id="anniDate" style="flex:1.2"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <span class="pills"><button class="pill on" data-ay="1">每年重复</button><button class="pill" data-ay="0">仅一次</button></span>
+          <button class="btn" id="anniAdd" style="margin-left:auto;padding:9px 16px">添加</button>
+        </div>
+      </div>
+      <div class="setcard">
+        <h4>笔记上锁</h4>
+        <p class="desc">真加密（AES）：上锁分类的内容与备份文件里都是密文。⚠️ 忘记主密码将永远无法解开，请把密码抄在纸上收好。</p>
+        <div id="lockArea"></div>
+      </div>
+      <div class="setcard">
         <h4>任务完成样式</h4>
         <p class="desc">选择任务列表里怎么打勾</p>
         <div class="chips" id="taskStyleChips" style="margin-top:4px">
@@ -574,8 +593,9 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       </div>
       <div class="setcard">
         <h4>笔记分类管理</h4>
-        <p class="desc">小记是固定的；其它分类可改名、删除（删除后文章并入第一个分类）</p>
+        <p class="desc">可新增、改名、删除（删除后文章并入第一个分类）。提醒：笔记是明文存储，重要密码请等「上锁」功能再放。</p>
         <div id="ntList"></div>
+        <div class="addrow" style="margin-top:10px"><input id="ntInput" placeholder="新分类名称（最多4字）" maxlength="4"><button id="ntAdd">添加</button></div>
       </div>
       <div class="setcard">
         <h4>循环任务管理</h4>
@@ -618,7 +638,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v1.9.1 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v2.0 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -776,6 +796,8 @@ if(!D.s.darkPref) D.s.darkPref='night';
 if(D.s.taskStyle===undefined) D.s.taskStyle='box';
 /* v1.6 migration: tpl -> recurrence */
 D.tpl.forEach(p=>{ if(!p.freq) p.freq='daily'; if(!p.created) p.created=D.lastOpen||todayISO(); });
+/* v2.0 migration */
+if(!D.anni) D.anni=[];
 if(!D.moods){
   D.moods=[];
   if(D.mood) Object.keys(D.mood).forEach(k=>{ const m=D.mood[k]; D.moods.push({id:uid()+k.slice(8),ts:k+'T12:00',date:k,v:m.v,note:m.note||'',src:'mood'}); });
@@ -994,7 +1016,14 @@ function renderTasks(){
   $('#ongoingN').textContent=vs.length;
   $('#totalN').textContent=vs.length+dnF.length;
   $('#filtCap').textContent=D.s.tFilter==='all'?'':' · '+catOf(D.s.tFilter).n;
-  $('#taskDate').textContent=`${+TODAY.slice(5,7)}月${+TODAY.slice(8,10)}日 · 周${'日一二三四五六'[new Date(TODAY+'T12:00:00').getDay()]}`;
+  let dline=`${+TODAY.slice(5,7)}月${+TODAY.slice(8,10)}日 · 周${'日一二三四五六'[new Date(TODAY+'T12:00:00').getDay()]}`;
+  const up=D.anni.map(a=>{
+    let t=a.yearly?(TODAY.slice(0,4)+'-'+a.date):a.date;
+    if(a.yearly&&t<TODAY) t=(+TODAY.slice(0,4)+1)+'-'+a.date;
+    return t>=TODAY?{n:a.n,days:diffDays(TODAY,t)}:null;
+  }).filter(Boolean).sort((x,y)=>x.days-y.days)[0];
+  if(up) dline+=up.days===0?` · 今天是${up.n} ✦`:` · 距${up.n} ${up.days} 天`;
+  $('#taskDate').textContent=dline;
   const dl=$('#doneList');
   dl.innerHTML = dn.length? dn.slice().reverse().map(l=>
     `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span><span class="tm">${l.ts.slice(11,16)}</span></div>`
@@ -1304,6 +1333,66 @@ function renderMoodList(){
 }
 RENDER['scr-mood']=function(){ moodDisp(); drawMood(); renderMoodList(); };
 
+/* ================= lock (AES-GCM + PBKDF2) ================= */
+let lockKey=null; const lockCache=new Map();
+function b64enc(u8){ let s=''; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); }
+function b64dec(b){ const s=atob(b); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i); return u; }
+async function deriveLockKey(pw){
+  const salt=b64dec(D.s.lockSalt);
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encJSON(key,obj){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj))));
+  const buf=new Uint8Array(12+ct.length); buf.set(iv); buf.set(ct,12);
+  return b64enc(buf);
+}
+async function decJSON(key,b64){
+  const buf=b64dec(b64);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:buf.subarray(0,12)},key,buf.subarray(12));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function decryptAllLocked(){
+  for(const e of D.notes.entries){
+    if(e.enc&&!lockCache.has(e.id)){
+      try{ lockCache.set(e.id, await decJSON(lockKey,e.data)); }catch(err){}
+    }
+  }
+}
+function relock(){ lockKey=null; lockCache.clear(); renderNotes(); toast('已重新上锁 🔒'); }
+function askUnlock(){
+  if(!window.crypto||!crypto.subtle){ toast('此环境不支持加密（正式网址上没问题）'); return Promise.resolve(false); }
+  return new Promise(res=>{
+    openMini(`<h5>🔒 输入笔记主密码</h5>
+      <input type="password" id="lockPw" class="edin" style="background:var(--bg);margin-bottom:10px" placeholder="主密码" autocomplete="off">
+      <div style="display:flex;gap:8px">
+        <button class="act" data-a="ok" style="flex:1;background:var(--sage);color:#FBFBF6;text-align:center;margin-bottom:0">解锁</button>
+        <button class="act" data-a="no" style="flex:1;text-align:center;margin-bottom:0">取消</button>
+      </div>`);
+    mini.querySelector('[data-a="no"]').addEventListener('click',()=>{ closeMini(); res(false); });
+    mini.querySelector('[data-a="ok"]').addEventListener('click',async()=>{
+      const pw=$('#lockPw').value;
+      if(!pw) return;
+      try{
+        const key=await deriveLockKey(pw);
+        let ok=false;
+        try{ ok=(await decJSON(key,D.s.lockCheck))==='ck'; }catch(e){}
+        if(ok){
+          lockKey=key;
+          await decryptAllLocked();
+          closeMini(); renderNotes(); toast('已解锁 · 点筛选栏的 🔓 可重新上锁');
+          res(true);
+        } else toast('密码不对');
+      }catch(e){ toast('解锁出错了'); }
+    });
+  });
+}
+function entryView(e){
+  if(!e.enc) return e;
+  const c=lockCache.get(e.id);
+  return c?Object.assign({},e,c,{pending:false}):Object.assign({},e,{title:null,body:'',wx:'',mood:null,pending:true});
+}
 /* ================= notes ================= */
 let noteFilter='all', noteMonth=null, edEntry=null, edType='diary', edMode='edit';
 function ntColor(t){ return `var(--p${t&&t.c!==undefined?t.c:0})`; }
@@ -1319,8 +1408,10 @@ function renderNotes(){
   const chips=[['all','全部'],...D.notes.types.map(t=>[t.id,t.n])];
   $('#noteChips').innerHTML=chips.map(([k,n])=>`<button class="chip${k===noteFilter?' on':''}" data-f="${k}">${esc(n)}</button>`).join('')
     +`<button class="calbtn${noteMonth?' on':''}" id="noteCalBtn" aria-label="按月查看"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="6.5"/><line x1="16" y1="3" x2="16" y2="6.5"/></svg></button>`;
+  if(lockKey) $('#noteChips').innerHTML+= `<button class="calbtn on" id="noteRelock" aria-label="重新上锁">🔓</button>`;
   $$('#noteChips .chip').forEach(c=>c.addEventListener('click',()=>{ noteFilter=c.dataset.f; renderNotes(); }));
   $('#noteCalBtn').addEventListener('click',openMonthPicker);
+  if($('#noteRelock')) $('#noteRelock').addEventListener('click',relock);
   let list=D.notes.entries.slice();
   if(noteFilter!=='all') list=list.filter(e=>e.type===noteFilter);
   if(noteMonth) list=list.filter(e=>e.ts.startsWith(noteMonth));
@@ -1328,7 +1419,13 @@ function renderNotes(){
   const fl=$('#noteFilterLine');
   if(noteMonth){ fl.style.display=''; fl.textContent=`${+noteMonth.slice(0,4)}年${+noteMonth.slice(5,7)}月 · 共 ${list.length} 篇 · 点此清除 ✕`; }
   else fl.style.display='none';
-  $('#noteList').innerHTML=list.length? list.map(e=>{
+  $('#noteList').innerHTML=list.length? list.map(raw=>{
+    const e=entryView(raw);
+    if(e.pending) return `<div class="entry" data-id="${e.id}">
+      <div class="emeta"><span>${fmtFullDate(e.ts)}</span>${ntTag(e.type)}</div>
+      <h4 class="untitled">🔒 已上锁</h4>
+      <div class="ex">轻点解锁查看</div>
+    </div>`;
     const mood=(e.mood===0||e.mood)?`<span class="mv" style="color:${moodColor(e.mood)}">${e.mood>0?'+':''}${e.mood}</span>`:'';
     return `<div class="entry" data-id="${e.id}">
       <div class="emeta"><span>${fmtFullDate(e.ts)}</span>${e.wx?`<span>${esc(e.wx)}</span>`:''}${mood}${ntTag(e.type)}</div>
@@ -1336,9 +1433,11 @@ function renderNotes(){
       <div class="ex">${esc(stripMD(e.body).slice(0,80))}</div>
     </div>`;
   }).join('') : '<p class="empty">这里还空着<br>点右下角 ＋ 写第一篇</p>';
-  $$('#noteList .entry').forEach(el=>el.addEventListener('click',()=>{
+  $$('#noteList .entry').forEach(el=>el.addEventListener('click',async()=>{
     const e=D.notes.entries.find(x=>x.id===el.dataset.id);
-    if(e) openEditor(e.type,e,'view');
+    if(!e) return;
+    if(e.enc&&!lockCache.has(e.id)){ const ok=await askUnlock(); if(!ok) return; }
+    openEditor(e.type,e,'view');
   }));
 }
 $('#noteFilterLine').addEventListener('click',()=>{ noteMonth=null; renderNotes(); });
@@ -1409,21 +1508,28 @@ let importTs=null;
 function openEditor(type,entry,mode){
   importTs=null;
   edType=type; edEntry=entry||null;
-  $('#nedType').textContent=noteTypeOf(type).n;
-  $('#nTitle2').value=entry?entry.title||'':'';
-  $('#nWx').value=entry?entry.wx||'':'';
-  $('#nMood').value=(entry&&(entry.mood===0||entry.mood))?entry.mood:'';
-  $('#nBody2').value=entry?entry.body:'';
+  const v=entry?entryView(entry):null;
+  const t=noteTypeOf(type);
+  $('#nedType').textContent=t.n+(t.locked?' 🔒':'');
+  $('#nTitle2').value=v?v.title||'':'';
+  $('#nWx').value=v?v.wx||'':'';
+  $('#nMood').value=(v&&(v.mood===0||v.mood))?v.mood:'';
+  $('#nBody2').value=v?v.body:'';
   $('#nDel2').style.display=entry?'':'none';
   setEdMode(mode||'edit');
   go('scr-nedit');
 }
 $('#nedBack').addEventListener('click',()=>{ go('scr-notes'); renderNotes(); });
 $('#fabNote').addEventListener('click',()=>{
-  openMini(`<h5>写哪一类？</h5><div class="catwrap">`+D.notes.types.map(t=>`<button class="chip" data-t="${t.id}" style="color:${ntColor(t)}">${esc(t.n)}</button>`).join('')+`</div>`);
-  mini.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{ closeMini(); openEditor(b.dataset.t,null,'edit'); }));
+  openMini(`<h5>写哪一类？</h5><div class="catwrap">`+D.notes.types.map(t=>`<button class="chip" data-t="${t.id}" style="color:${ntColor(t)}">${esc(t.n)}${t.locked?' 🔒':''}</button>`).join('')+`</div>`);
+  mini.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',async()=>{
+    closeMini();
+    const t=noteTypeOf(b.dataset.t);
+    if(t.locked&&!lockKey){ const ok=await askUnlock(); if(!ok) return; }
+    openEditor(b.dataset.t,null,'edit');
+  }));
 });
-$('#nSave2').addEventListener('click',()=>{
+$('#nSave2').addEventListener('click',async()=>{
   const body=$('#nBody2').value.trim();
   if(!body){ toast('正文还是空的～'); return; }
   let mood=null; const mv=$('#nMood').value.trim();
@@ -1433,24 +1539,44 @@ $('#nSave2').addEventListener('click',()=>{
     mood=Math.max(-100,Math.min(100,mood));
   }
   const title=$('#nTitle2').value.trim(), wx=$('#nWx').value.trim();
-  const mnote=t=>t.title||stripMD(t.body).slice(0,20);
-  if(edEntry){
-    edEntry.title=title; edEntry.wx=wx; edEntry.body=body;
+  const typeId=edEntry?edEntry.type:edType;
+  const locked=!!noteTypeOf(typeId).locked;
+  if(locked&&!lockKey){ const ok=await askUnlock(); if(!ok) return; }
+  const mnoteText=locked?'🔒':(title||stripMD(body).slice(0,20));
+  const syncMood=(e)=>{
     if(mood===null){
-      if(edEntry.moodId){ D.moods=D.moods.filter(m=>m.id!==edEntry.moodId); edEntry.moodId=null; }
-      edEntry.mood=null;
+      if(e.moodId){ D.moods=D.moods.filter(m=>m.id!==e.moodId); e.moodId=null; }
     } else {
-      edEntry.mood=mood;
-      const lm=edEntry.moodId&&D.moods.find(m=>m.id===edEntry.moodId);
-      if(lm){ lm.v=mood; lm.note=mnote(edEntry); }
-      else { const id=uid(); D.moods.push({id,ts:edEntry.ts,date:edEntry.ts.slice(0,10),v:mood,note:mnote(edEntry),src:edEntry.type}); edEntry.moodId=id; }
+      const lm=e.moodId&&D.moods.find(m=>m.id===e.moodId);
+      if(lm){ lm.v=mood; lm.note=mnoteText; }
+      else { const id=uid(); D.moods.push({id,ts:e.ts,date:e.ts.slice(0,10),v:mood,note:mnoteText,src:typeId}); e.moodId=id; }
     }
+  };
+  if(edEntry){
+    if(locked){
+      const payload={title,wx,body,mood};
+      try{ edEntry.data=await encJSON(lockKey,payload); }catch(err){ toast('加密失败，未保存'); return; }
+      edEntry.enc=true;
+      delete edEntry.title; delete edEntry.wx; delete edEntry.body; delete edEntry.mood;
+      lockCache.set(edEntry.id,payload);
+    } else {
+      edEntry.title=title; edEntry.wx=wx; edEntry.body=body; edEntry.mood=mood;
+    }
+    syncMood(edEntry);
     toast('已保存修改');
   } else {
-    const e={id:uid(),type:edType,title,wx,body,mood,ts:importTs||tsNow(),moodId:null};
-    if(mood!==null){ const id=uid(); D.moods.push({id,ts:e.ts,date:e.ts.slice(0,10),v:mood,note:mnote(e),src:edType}); e.moodId=id; }
+    const e={id:uid(),type:edType,ts:importTs||tsNow(),moodId:null};
+    if(locked){
+      const payload={title,wx,body,mood};
+      try{ e.data=await encJSON(lockKey,payload); }catch(err){ toast('加密失败，未保存'); return; }
+      e.enc=true;
+      lockCache.set(e.id,payload);
+    } else {
+      e.title=title; e.wx=wx; e.body=body; e.mood=mood;
+    }
+    syncMood(e);
     D.notes.entries.push(e);
-    toast(importTs?'已导入并保存':'已保存');
+    toast(importTs?'已导入并保存':(locked?'已加密保存 🔒':'已保存'));
     importTs=null;
   }
   save(); go('scr-notes'); renderNotes();
@@ -1519,6 +1645,7 @@ $('#noteFile').addEventListener('change',async e=>{
     const fm=body.match(/^#\s+(.+)\n+/);
     if(fm){ title=fm[1].trim().slice(0,40); body=body.slice(fm[0].length); }
     const ts=f.lastModified?new Date(f.lastModified):null;
+    if(noteTypeOf(impType).locked&&!lockKey){ const ok=await askUnlock(); if(!ok){ toast('已取消导入'); return; } }
     openEditor(impType,null,'edit');
     $('#nTitle2').value=title;
     $('#nBody2').value=body;
@@ -1640,6 +1767,31 @@ function renderWords(){
   }));
   $$('#wList .wcard').forEach(el=>el.addEventListener('click',()=>editWordCond(+el.dataset.wi)));
 }
+$('#wBatch').addEventListener('click',()=>{
+  const tabN=wTab==='mom'?'妈咪说':wTab==='essay'?'随笔':'开屏语';
+  const condLbl=(wTab!=='open'?DTNAME[wDt]+' · ':'')+PERNAME[wPer];
+  openMini(`<h5>批量导入到「${tabN}」 · 条件：${condLbl}（先在上面选好条件再来）</h5>
+    <label>一行一句；双语在一行里用｜隔开（英文｜中文）</label>
+    <textarea id="batchTa" placeholder="慢慢来，别急。&#10;Begin anywhere.｜从任何地方开始。" style="width:100%;min-height:160px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:11px 13px;font-size:13.5px;color:var(--ink);font-family:var(--sans);outline:none;line-height:1.8;resize:vertical"></textarea>
+    <button class="act" data-a="go" style="background:var(--sage);color:#FBFBF6;text-align:center;margin-top:10px">导入</button>`);
+  mini.querySelector('[data-a="go"]').addEventListener('click',()=>{
+    const lines=$('#batchTa').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!lines.length){ toast('还没贴东西呢'); return; }
+    let n=0;
+    lines.forEach(line=>{
+      const parts=line.split(/[｜|]/).map(s=>s.trim()).filter(Boolean);
+      if(!parts[0]) return;
+      const item={t:parts[0].slice(0,120),d:fmtMD(TODAY),seen:false,p:wPer};
+      if(parts[1]) item.t2=parts[1].slice(0,120);
+      if(wTab!=='open'){
+        item.dt=wDt;
+        if(wDt==='date'){ const dv=$('#wDate').value; if(dv) item.date=dv.slice(5); }
+      }
+      D.words[wTab].push(item); n++;
+    });
+    save(); closeMini(); renderWords(); toast('已导入 '+n+' 句 · '+condLbl);
+  });
+});
 function editWordCond(idx){
   const w=D.words[wTab][idx]; if(!w) return;
   const isOpen=wTab==='open';
@@ -1810,7 +1962,8 @@ function renderSettings(){
   $$('#taskStyleChips .chip').forEach(c=>c.classList.toggle('on',c.dataset.ts===D.s.taskStyle));
   // note types
   $('#ntList').innerHTML=D.notes.types.map((t,i)=>`
-    <div class="tpl-row"><span class="sp">${esc(t.n)}<span style="color:var(--faint);font-size:11px">&ensp;${D.notes.entries.filter(e=>e.type===t.id).length} 篇</span></span>
+    <div class="tpl-row"><span class="sp">${esc(t.n)}${t.locked?' 🔒':''}<span style="color:var(--faint);font-size:11px">&ensp;${D.notes.entries.filter(e=>e.type===t.id).length} 篇</span></span>
+      ${D.s.lockSalt?`<button data-a="l" data-i="${i}">${t.locked?'解除锁':'上锁'}</button>`:''}
       <button data-a="r" data-i="${i}">改名</button>
       <button data-a="x" data-i="${i}">删除</button></div>`).join('');
   $$('#ntList button').forEach(b=>b.addEventListener('click',()=>{
@@ -1818,15 +1971,70 @@ function renderSettings(){
     if(b.dataset.a==='r'){
       const nn=prompt('新名称（最多4字）',t.n);
       if(nn&&nn.trim()){ t.n=nn.trim().slice(0,4); save(); renderSettings(); }
+    } else if(b.dataset.a==='l'){
+      (async()=>{
+        if(!lockKey){ const ok=await askUnlock(); if(!ok) return; }
+        if(!t.locked){
+          for(const e of D.notes.entries){
+            if(e.type===t.id&&!e.enc){
+              const payload={title:e.title||'',wx:e.wx||'',body:e.body||'',mood:(e.mood===0||e.mood)?e.mood:null};
+              try{ e.data=await encJSON(lockKey,payload); }catch(err){ toast('加密出错，已中止'); return; }
+              e.enc=true; lockCache.set(e.id,payload);
+              delete e.title; delete e.wx; delete e.body; delete e.mood;
+            }
+          }
+          t.locked=true; toast(`「${t.n}」已上锁，内容已加密`);
+        } else {
+          for(const e of D.notes.entries){
+            if(e.type===t.id&&e.enc){
+              let p=lockCache.get(e.id);
+              if(!p){ try{ p=await decJSON(lockKey,e.data); }catch(err){ p=null; } }
+              if(p){ Object.assign(e,p); delete e.enc; delete e.data; lockCache.delete(e.id); }
+            }
+          }
+          t.locked=false; toast(`「${t.n}」已解除上锁，恢复明文`);
+        }
+        save(); renderSettings();
+      })();
     } else {
       if(D.notes.types.length<=1){ toast('至少保留一个分类'); return; }
+      if(t.locked){ toast('先解除上锁再删除'); return; }
       if(!confirm(`删除分类「${t.n}」？它的文章会并入第一个分类`)) return;
       const target=D.notes.types.find((x,xi)=>xi!==i).id;
       D.notes.entries.forEach(e=>{ if(e.type===t.id) e.type=target; });
-      if(nTab===t.id) nTab='mood';
       D.notes.types.splice(i,1); save(); renderSettings(); toast('已删除，文章已并入');
     }
   }));
+  // anniversaries
+  $('#anniList').innerHTML=D.anni.length? D.anni.map((a,i)=>`
+    <div class="tpl-row"><span class="sp">${esc(a.n)}<span style="color:var(--faint);font-size:11px">&ensp;${a.yearly?'每年 '+(+a.date.slice(0,2))+'.'+(+a.date.slice(3,5)):a.date.replace(/-/g,'.')}</span></span>
+      <button data-aa="x" data-i="${i}">删除</button></div>`).join('')
+    : '<p class="empty" style="padding:8px">还没有纪念日</p>';
+  $$('#anniList button').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('删除这个纪念日？')){ D.anni.splice(+b.dataset.i,1); save(); renderSettings(); }
+  }));
+  // lock area
+  const la=$('#lockArea');
+  if(!D.s.lockSalt){
+    la.innerHTML=`<input type="password" id="lp1" class="edin" style="background:var(--bg);margin-bottom:8px" placeholder="设定主密码（至少4位）" autocomplete="new-password">
+      <input type="password" id="lp2" class="edin" style="background:var(--bg);margin-bottom:10px" placeholder="再输一遍" autocomplete="new-password">
+      <button class="btn" id="lockSet">设定主密码</button>`;
+    $('#lockSet').addEventListener('click',async()=>{
+      if(!window.crypto||!crypto.subtle){ toast('此环境不支持加密（正式网址上没问题）'); return; }
+      const p1=$('#lp1').value, p2=$('#lp2').value;
+      if(p1.length<4){ toast('至少 4 位'); return; }
+      if(p1!==p2){ toast('两次输入不一致'); return; }
+      D.s.lockSalt=b64enc(crypto.getRandomValues(new Uint8Array(16)));
+      lockKey=await deriveLockKey(p1);
+      D.s.lockCheck=await encJSON(lockKey,'ck');
+      save(); renderSettings(); toast('主密码已设定，去上面给分类上锁吧');
+    });
+  } else {
+    const n=D.notes.types.filter(t=>t.locked).length;
+    la.innerHTML=`<p style="font-size:13px">主密码已设定 · 上锁分类 ${n} 个 · ${lockKey?'当前已解锁 🔓':'当前已上锁 🔒'}</p>`+
+      (lockKey?`<button class="btn ghost" id="lockNow" style="margin-top:10px">立即重新上锁</button>`:'');
+    if($('#lockNow')) $('#lockNow').addEventListener('click',()=>{ relock(); renderSettings(); });
+  }
   $('#setRate').value=D.s.rate; $('#setT1').value=D.s.t1; $('#setT2').value=D.s.t2;
   $('#poolA').value=poolText('A'); $('#poolB').value=poolText('B'); $('#poolC').value=poolText('C');
   $('#poolM').value=D.miles.map(m=>m.n+'|'+m.t).join('\n');
@@ -1863,6 +2071,16 @@ function renderSettings(){
     }
   }));
 }
+$('#ntAdd').addEventListener('click',()=>{
+  const n=$('#ntInput').value.trim();
+  if(!n){ toast('先给分类起个名字'); return; }
+  if(D.notes.types.find(t=>t.n===n)){ toast('已经有这个分类啦'); return; }
+  const used=new Set(D.notes.types.map(t=>t.c));
+  let slot=-1; for(let i=0;i<PAL_N;i++){ if(!used.has(i)){ slot=i; break; } }
+  if(slot<0) slot=D.notes.types.length%PAL_N;
+  D.notes.types.push({id:uid(),n:n.slice(0,4),c:slot});
+  $('#ntInput').value=''; save(); renderSettings(); toast('笔记分类已添加');
+});
 $('#catAdd').addEventListener('click',()=>{
   const n=$('#catInput').value.trim();
   if(!n){ toast('先给类型起个名字'); return; }
@@ -1874,6 +2092,51 @@ $('#catAdd').addEventListener('click',()=>{
   $('#catInput').value=''; save(); renderSettings(); toast('新类型已添加');
 });
 $('#setNick').addEventListener('change',()=>{ D.s.nick=$('#setNick').value.trim()||'青沐'; save(); toast('记住啦'); });
+let anniYearly=true;
+$$('[data-ay]').forEach(p=>p.addEventListener('click',()=>{
+  $$('[data-ay]').forEach(x=>x.classList.remove('on')); p.classList.add('on');
+  anniYearly=p.dataset.ay==='1';
+}));
+$('#anniAdd').addEventListener('click',()=>{
+  const n=$('#anniName').value.trim(), dv=$('#anniDate').value;
+  if(!n||!dv){ toast('名称和日期都要填'); return; }
+  D.anni.push({id:uid(),n:n.slice(0,10),yearly:anniYearly,date:anniYearly?dv.slice(5):dv});
+  $('#anniName').value=''; save(); renderSettings(); toast('纪念日已添加');
+});
+$('#recReport').addEventListener('click',()=>{
+  const ym=recM, label=`${+ym.slice(0,4)}年${+ym.slice(5,7)}月`;
+  const logs=D.log.filter(l=>l.date.startsWith(ym));
+  const discs=D.disc.filter(d=>d.date.startsWith(ym));
+  const rate=(logs.length+discs.length)?Math.round(logs.length/(logs.length+discs.length)*100)+'%':'—';
+  const counts={}; logs.forEach(l=>{ const k=l.cat||'_'; counts[k]=(counts[k]||0)+1; });
+  const catLines=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`　${k==='_'?'未分类':catOf(k).n}　${c} 件`).join('\n');
+  const days=new Set(logs.map(l=>l.date)).size;
+  const moods=D.moods.filter(m=>m.date.startsWith(ym));
+  let moodLine='未记录';
+  if(moods.length){
+    const avg=Math.round(moods.reduce((a,b)=>a+b.v,0)/moods.length);
+    const mx=moods.reduce((a,b)=>b.v>a.v?b:a), mn=moods.reduce((a,b)=>b.v<a.v?b:a);
+    moodLine=`月均 ${avg>0?'+':''}${avg} · 最高 ${mx.v>0?'+':''}${mx.v}（${fmtMD(mx.date)}）· 最低 ${mn.v>0?'+':''}${mn.v}（${fmtMD(mn.date)}）`;
+  }
+  const notes=D.notes.entries.filter(e=>e.ts.startsWith(ym));
+  const nc={}; notes.forEach(e=>{ const t=noteTypeOf(e.type).n; nc[t]=(nc[t]||0)+1; });
+  const drops=[...D.rw.pend,...D.rw.done].filter(r=>r.ts&&r.ts.startsWith(ym)).length;
+  const rpt=`《小记 · ${label} 月报》
+完成 ${logs.length} 件 · 废弃 ${discs.length} 件 · 完成率 ${rate}
+打卡 ${days} 天
+按类型：
+${catLines||'　—'}
+心情：${moodLine}
+笔记：共 ${notes.length} 篇${Object.entries(nc).map(([k,c])=>` · ${k} ${c}`).join('')}
+奖励掉落 ${drops} 个 · 人生累计完成 ${D.rw.life} 件`;
+  openMini(`<h5>📄 ${label} 月报</h5>
+    <pre style="white-space:pre-wrap;font-family:var(--sans);font-size:13px;line-height:1.9;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px">${esc(rpt)}</pre>
+    <button class="act" data-a="cp" style="background:var(--sage);color:#FBFBF6;text-align:center">复制月报</button>`);
+  mini.querySelector('[data-a="cp"]').addEventListener('click',()=>{
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(rpt).then(()=>toast('月报已复制'),()=>toast('复制失败，长按选中吧'));
+    else toast('复制失败，长按选中吧');
+  });
+});
 $$('#themeChips .chip').forEach(c=>c.addEventListener('click',()=>{
   D.s.theme=c.dataset.th;
   if(D.s.theme!=='day') D.s.darkPref=D.s.theme;
