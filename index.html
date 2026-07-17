@@ -413,7 +413,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
     <header class="bar">
       <button class="iconbtn back"><svg viewBox="0 0 24 24"><polyline points="14.5 5 7.5 12 14.5 19"/></svg></button>
       <span class="title">Notes · 笔记</span>
-      <span style="width:44px"></span>
+      <button class="iconbtn" id="noteImport" aria-label="导入"><svg viewBox="0 0 24 24"><path d="M12 3v11"/><polyline points="7.5 9.5 12 14 16.5 9.5"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></button>
+      <input type="file" id="noteFile" accept=".md,.txt,.docx,text/plain,text/markdown" style="display:none">
     </header>
     <div class="scroll">
       <div class="chips" id="noteChips" style="margin-top:10px"></div>
@@ -498,6 +499,9 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       </div>
       <p class="whint" id="wHint">主页 95% 抽未显示的句子，抽中标为已显示；5% 让老句子回来看看你。全部显示过就重新循环。</p>
       <div style="margin:4px 0 14px">
+        <div class="chips" id="wDt" style="display:none;margin:0 0 10px"></div>
+        <div id="wDateWrap" style="display:none;margin:0 0 10px"><input type="date" id="wDate" class="edin" style="background:var(--card)"><p class="whint" style="margin:6px 2px 0">按「月-日」匹配，每年这一天都会出现，且当天只显示特定日期的句子</p></div>
+        <div class="chips" id="wPeriod" style="display:none;margin:0 0 10px"></div>
         <div class="addrow" style="margin:0 0 8px"><input id="wInput" placeholder="第一行（中文或英文）" maxlength="120"></div>
         <div class="addrow" style="margin:0"><input id="wInput2" placeholder="第二行（可不填 · 双语时用）" maxlength="120"><button id="wAdd">添加</button></div>
       </div>
@@ -531,6 +535,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       <div class="seclabel"><span>按类型 · BY TYPE</span></div>
       <div id="catStats"></div>
       <div class="chips" id="recChips" style="margin-top:22px"></div>
+      <button class="chip" id="recExport" style="margin-top:12px">⎘ 导出此视图（可直接粘贴）</button>
       <div class="rec-day" id="recListLabel">完成清单</div>
       <div id="recList"></div>
     </div>
@@ -573,8 +578,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <div id="ntList"></div>
       </div>
       <div class="setcard">
-        <h4>每日任务管理</h4>
-        <p class="desc">每天自动出现的任务，可跳过今天或停用</p>
+        <h4>循环任务管理</h4>
+        <p class="desc">每天 / 每N天 / 每周 / 每月自动出现的任务，可跳过今天或停用</p>
         <div id="tplList"></div>
       </div>
       <div class="setcard">
@@ -613,7 +618,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v1.4 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v1.8 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -651,9 +656,30 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
   <label>任务类型</label>
   <span class="pills" id="tTypePills">
     <button class="pill on" data-t="once">当日</button>
-    <button class="pill" data-t="daily">每日</button>
+    <button class="pill" data-t="daily">循环</button>
     <button class="pill" data-t="span">跨时段</button>
   </span>
+  <div id="tFreqWrap" style="display:none">
+    <label>循环方式</label>
+    <span class="pills" id="freqPills">
+      <button class="pill on" data-f="daily">每天</button>
+      <button class="pill" data-f="every">每几天</button>
+      <button class="pill" data-f="weekly">每周几</button>
+      <button class="pill" data-f="monthly">每月几号</button>
+    </span>
+    <div id="freqN" style="display:none">
+      <label>每几天一轮（当轮完成后，下一轮重新出现）</label>
+      <input type="number" id="tN" min="2" max="365" value="3" inputmode="numeric" class="edin" style="background:var(--bg)">
+    </div>
+    <div id="freqW" style="display:none">
+      <label>星期几</label>
+      <div class="catgrid" id="tWd"></div>
+    </div>
+    <div id="freqM" style="display:none">
+      <label>每月几号（当天起挂在列表里，完成为止）</label>
+      <input type="number" id="tMd" min="1" max="31" value="18" inputmode="numeric" class="edin" style="background:var(--bg)">
+    </div>
+  </div>
   <div id="tDateWrap">
     <label>日期（选未来的日期就是预制任务）</label>
     <input type="date" id="tDate">
@@ -746,6 +772,8 @@ if(!D.notes) D.notes={types:[{id:'diary',n:'日记'},{id:'wen',n:'小文'},{id:'
 if(!D.s.darkPref) D.s.darkPref='night';
 /* v1.3 migration */
 if(D.s.taskStyle===undefined) D.s.taskStyle='box';
+/* v1.6 migration: tpl -> recurrence */
+D.tpl.forEach(p=>{ if(!p.freq) p.freq='daily'; if(!p.created) p.created=D.lastOpen||todayISO(); });
 if(!D.moods){
   D.moods=[];
   if(D.mood) Object.keys(D.mood).forEach(k=>{ const m=D.mood[k]; D.moods.push({id:uid()+k.slice(8),ts:k+'T12:00',date:k,v:m.v,note:m.note||'',src:'mood'}); });
@@ -821,10 +849,12 @@ function renderHomeTop(){
   $('#drawerDate').textContent=`${MO[d.getMonth()].toUpperCase()} ${d.getDate()}, ${d.getFullYear()}`;
   const h=d.getHours();
   let pool=h<5?OPENERS.late:h<11?OPENERS.morning:h<14?OPENERS.noon:h<18?OPENERS.afternoon:h<23?OPENERS.evening:OPENERS.late;
-  if(D.words.open.length && Math.random()<0.35){
-    $('#greetText').textContent='';
-    const c=D.words.open[Math.floor(Math.random()*D.words.open.length)];
-    $('#greetText').textContent=(h<11?'Morning':h<18?'Afternoon':'Evening')+', '+D.s.nick;
+  const perKey=h<5?'late':h<11?'morning':h<14?'noon':h<18?'afternoon':h<23?'evening':'late';
+  const cands=D.words.open.filter(w=>!w.p||w.p==='all'||w.p===perKey);
+  if(cands.length && Math.random()<0.35){
+    const c=cands[Math.floor(Math.random()*cands.length)];
+    const late=perKey==='late';
+    $('#greetText').textContent=late?('Still awake, '+D.s.nick+'?'):((h<11?'Morning':h<14?'Noon':h<18?'Afternoon':'Evening')+', '+D.s.nick);
     $('#openLine').textContent=c.t||c;
   } else {
     const [g,l]=pool[Math.floor(Math.random()*pool.length)];
@@ -836,25 +866,81 @@ function pickQuote(){
   const all=[...D.words.mom,...D.words.essay];
   const l1=$('#tqL1'), l2=$('#tqL2');
   if(!all.length){ l1.textContent='去「话语集」存下第一句吧'; l2.style.display='none'; return; }
-  let unseen=all.filter(w=>!w.seen);
-  if(!unseen.length){ all.forEach(w=>w.seen=false); unseen=all; }
+  const h=nowD().getHours();
+  const perKey=h<5?'late':h<11?'morning':h<14?'noon':h<18?'afternoon':h<23?'evening':'late';
+  const perOK=w=>!w.p||w.p==='all'||w.p===perKey;
+  const md=TODAY.slice(5);
+  const wd=new Date(TODAY+'T12:00:00').getDay();
+  const isRest=(wd===0||wd===6);
+  // 特定日期当天独占
+  let pool=all.filter(w=>w.dt==='date'&&w.date===md&&perOK(w));
+  const exclusive=pool.length>0;
+  if(!exclusive){
+    pool=all.filter(w=>{
+      const dt=w.dt||'any';
+      if(dt==='date') return false;
+      if(dt==='work'&&isRest) return false;
+      if(dt==='rest'&&!isRest) return false;
+      return perOK(w);
+    });
+  }
+  if(!pool.length){ l1.textContent='今天这个时段还没有合适的句子'; l2.style.display='none'; return; }
   let pick;
-  const seen=all.filter(w=>w.seen);
-  if(seen.length && Math.random()<0.05){ pick=seen[Math.floor(Math.random()*seen.length)]; }
-  else { pick=unseen[Math.floor(Math.random()*unseen.length)]; pick.seen=true; }
-  save();
+  if(exclusive){
+    pick=pool[Math.floor(Math.random()*pool.length)];
+  } else {
+    let unseen=pool.filter(w=>!w.seen);
+    if(!unseen.length){ pool.forEach(w=>w.seen=false); unseen=pool; }
+    const seen=pool.filter(w=>w.seen);
+    if(seen.length && Math.random()<0.05){ pick=seen[Math.floor(Math.random()*seen.length)]; }
+    else { pick=unseen[Math.floor(Math.random()*unseen.length)]; pick.seen=true; }
+    save();
+  }
   l1.textContent=pick.t;
   if(pick.t2){ l2.textContent=pick.t2; l2.style.display=''; } else l2.style.display='none';
 }
 $('#taskQuote').addEventListener('click',pickQuote);
 
 /* ================= tasks ================= */
+function dimOf(y,m){ return new Date(y,m,0).getDate(); }
+function tplWindow(p){
+  const f=p.freq||'daily';
+  if(f==='daily') return TODAY;
+  if(f==='every'){
+    const n=Math.max(2,p.n||3);
+    const d=diffDays(p.created,TODAY);
+    if(d<0) return null;
+    return addDays(p.created,Math.floor(d/n)*n);
+  }
+  if(f==='weekly'){
+    const wd=(p.wd===undefined?1:p.wd);
+    const tw=new Date(TODAY+'T12:00:00').getDay();
+    return addDays(TODAY,-((tw-wd+7)%7));
+  }
+  if(f==='monthly'){
+    const md=Math.min(Math.max(1,p.md||1),31);
+    let y=+TODAY.slice(0,4), m=+TODAY.slice(5,7);
+    let s=`${y}-${String(m).padStart(2,'0')}-${String(Math.min(md,dimOf(y,m))).padStart(2,'0')}`;
+    if(s>TODAY){ m--; if(m<1){m=12;y--;} s=`${y}-${String(m).padStart(2,'0')}-${String(Math.min(md,dimOf(y,m))).padStart(2,'0')}`; }
+    return s;
+  }
+  return TODAY;
+}
+function tplFreqLabel(p){
+  const f=p.freq||'daily';
+  if(f==='every') return '每'+(p.n||3)+'天';
+  if(f==='weekly') return '每周'+'日一二三四五六'[p.wd===undefined?1:p.wd];
+  if(f==='monthly') return '每月'+(p.md||1)+'日';
+  return '每日';
+}
 function virtualTasks(){
   const out=[];
-  const doneTplToday=new Set(D.log.filter(l=>l.date===TODAY&&l.tid).map(l=>l.tid));
   D.tpl.forEach(p=>{
-    if(p.active!==false && p.skip!==TODAY && !doneTplToday.has(p.id))
-      out.push({kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily'});
+    if(p.active===false || p.skip===TODAY) return;
+    const ws=tplWindow(p);
+    if(!ws) return;
+    const done=D.log.some(l=>l.tid===p.id && l.date>=ws);
+    if(!done) out.push({kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily',freqLabel:tplFreqLabel(p)});
   });
   D.tasks.forEach(t=>{
     if(t.type==='once' && t.date===TODAY) out.push({kind:'task',...t});
@@ -868,7 +954,7 @@ function taskEl(v){
   const el=document.createElement('div');
   el.className='task'+(v.reward?' reward-task':'');
   let meta=tagHTML(v.cat, v.reward?'奖励':null);
-  if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>每日</span>`;
+  if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
   else if(v.type==='span') meta+=`<span>跨时段 · 至 ${fmtMD(v.end)}</span>`;
   else if(!v.reward) meta+=`<span>今日 · 一次性</span>`;
   let prog='';
@@ -937,8 +1023,8 @@ miniScrim.addEventListener('click',closeMini);
 function taskActions(v){
   let h=`<h5>${esc(v.name)}</h5>`;
   if(v.kind==='tpl'){
-    h+=`<button class="act" data-a="skip">今天跳过（明天照常出现）</button>
-        <button class="act" data-a="off">停用此每日任务</button>
+    h+=`<button class="act" data-a="skip">今天跳过（之后照常出现）</button>
+        <button class="act" data-a="off">停用此循环任务</button>
         <button class="act danger" data-a="delTpl">删除</button>`;
   } else if(v.type==='span'){
     h+=`<label>修改截止日期（提前延后都可以）</label>
@@ -953,7 +1039,7 @@ function taskActions(v){
     const a=b.dataset.a;
     if(a==='skip'){ const p=D.tpl.find(x=>x.id===v.id); if(p){p.skip=TODAY; toast('今天跳过，明天照常出现');} }
     else if(a==='off'){ const p=D.tpl.find(x=>x.id===v.id); if(p){p.active=false; toast('已停用，可在设置里重新启用');} }
-    else if(a==='delTpl'){ if(!confirm('删除这个每日任务？')) return; D.tpl=D.tpl.filter(x=>x.id!==v.id); toast('已删除'); }
+    else if(a==='delTpl'){ if(!confirm('删除这个循环任务？')) return; D.tpl=D.tpl.filter(x=>x.id!==v.id); toast('已删除'); }
     else if(a==='delTask'){ if(!confirm(`删除任务「${v.name}」？`)) return; D.tasks=D.tasks.filter(t=>t.id!==v.id); toast('已删除'); }
     else if(a==='saveEnd'){
       const ne=$('#endInput').value;
@@ -975,15 +1061,31 @@ function changeCat(logId,after){
 }
 
 /* ---- new task sheet ---- */
-let sheetType='once', sheetCat='work';
+let sheetType='once', sheetCat='work', sheetFreq='daily', sheetWd=1;
 function openSheet(){
-  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id;
+  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1;
   $('#tName').value=''; $('#tDate').value=TODAY;
   $('#tStart').value=TODAY; $('#tEnd').value=addDays(TODAY,29);
+  $('#tN').value=3; $('#tMd').value=Math.min(28,+TODAY.slice(8,10));
   $$('#tTypePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.t==='once'));
-  syncSheetType(); renderSheetCats();
+  $$('#freqPills .pill').forEach(p=>p.classList.toggle('on',p.dataset.f==='daily'));
+  syncSheetType(); renderSheetCats(); renderWdChips();
   $('#sheet').classList.add('on'); $('#sheetScrim').classList.add('on');
 }
+function renderWdChips(){
+  const days=[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']];
+  $('#tWd').innerHTML=days.map(([v,n])=>`<button class="chip${v===sheetWd?' on':''}" data-w="${v}">周${n}</button>`).join('');
+  $$('#tWd .chip').forEach(c=>c.addEventListener('click',()=>{ sheetWd=+c.dataset.w; renderWdChips(); }));
+}
+function syncFreq(){
+  $('#freqN').style.display=sheetFreq==='every'?'':'none';
+  $('#freqW').style.display=sheetFreq==='weekly'?'':'none';
+  $('#freqM').style.display=sheetFreq==='monthly'?'':'none';
+}
+$$('#freqPills .pill').forEach(p=>p.addEventListener('click',()=>{
+  $$('#freqPills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on');
+  sheetFreq=p.dataset.f; syncFreq();
+}));
 function closeSheet(){ $('#sheet').classList.remove('on'); $('#sheetScrim').classList.remove('on'); }
 $('#fabAdd').addEventListener('click',openSheet);
 $('#sheetScrim').addEventListener('click',closeSheet);
@@ -994,7 +1096,8 @@ $$('#tTypePills .pill').forEach(p=>p.addEventListener('click',()=>{
 function syncSheetType(){
   $('#tDateWrap').style.display=sheetType==='once'?'':'none';
   $('#tSpanWrap').style.display=sheetType==='span'?'':'none';
-  checkFut();
+  $('#tFreqWrap').style.display=sheetType==='daily'?'':'none';
+  syncFreq(); checkFut();
 }
 function checkFut(){ $('#futNote').style.display=($('#tDate').value>TODAY)?'block':'none'; }
 $('#tDate').addEventListener('change',checkFut);
@@ -1009,8 +1112,12 @@ $('#tSave').addEventListener('click',()=>{
   const name=$('#tName').value.trim();
   if(!name){ toast('给任务起个名字吧'); return; }
   if(sheetType==='daily'){
-    D.tpl.push({id:uid(),name,cat:sheetCat,active:true,skip:null});
-    toast('每日任务已创建，每天自动出现');
+    const p={id:uid(),name,cat:sheetCat,active:true,skip:null,freq:sheetFreq,created:TODAY};
+    if(sheetFreq==='every') p.n=Math.min(365,Math.max(2,parseInt($('#tN').value)||3));
+    if(sheetFreq==='weekly') p.wd=sheetWd;
+    if(sheetFreq==='monthly') p.md=Math.min(31,Math.max(1,parseInt($('#tMd').value)||1));
+    D.tpl.push(p);
+    toast('循环任务已创建 · '+tplFreqLabel(p));
   } else if(sheetType==='span'){
     const s=$('#tStart').value, e=$('#tEnd').value;
     if(!s||!e||e<s){ toast('检查一下起止日期～'); return; }
@@ -1291,7 +1398,9 @@ function setEdMode(m){
   else v.style.display='none';
 }
 $$('#nedPills .pill').forEach(p=>p.addEventListener('click',()=>setEdMode(p.dataset.m)));
+let importTs=null;
 function openEditor(type,entry,mode){
+  importTs=null;
   edType=type; edEntry=entry||null;
   $('#nedType').textContent=noteTypeOf(type).n;
   $('#nTitle2').value=entry?entry.title||'':'';
@@ -1331,10 +1440,11 @@ $('#nSave2').addEventListener('click',()=>{
     }
     toast('已保存修改');
   } else {
-    const e={id:uid(),type:edType,title,wx,body,mood,ts:tsNow(),moodId:null};
-    if(mood!==null){ const id=uid(); D.moods.push({id,ts:e.ts,date:TODAY,v:mood,note:mnote(e),src:edType}); e.moodId=id; }
+    const e={id:uid(),type:edType,title,wx,body,mood,ts:importTs||tsNow(),moodId:null};
+    if(mood!==null){ const id=uid(); D.moods.push({id,ts:e.ts,date:e.ts.slice(0,10),v:mood,note:mnote(e),src:edType}); e.moodId=id; }
     D.notes.entries.push(e);
-    toast('已保存');
+    toast(importTs?'已导入并保存':'已保存');
+    importTs=null;
   }
   save(); go('scr-notes'); renderNotes();
 });
@@ -1343,6 +1453,76 @@ $('#nDel2').addEventListener('click',()=>{
   if(edEntry.moodId) D.moods=D.moods.filter(m=>m.id!==edEntry.moodId);
   D.notes.entries=D.notes.entries.filter(x=>x.id!==edEntry.id);
   edEntry=null; save(); go('scr-notes'); renderNotes(); toast('已删除');
+});
+/* ---- import (md/txt/docx) ---- */
+let impType='her';
+$('#noteImport').addEventListener('click',()=>{
+  openMini(`<h5>导入到哪一类？（支持 .md / .txt / .docx）</h5><div class="catwrap">`+
+    D.notes.types.map(t=>`<button class="chip" data-t="${t.id}" style="color:${ntColor(t)}">${esc(t.n)}</button>`).join('')+`</div>`);
+  mini.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
+    impType=b.dataset.t; closeMini();
+    $('#noteFile').value=''; $('#noteFile').click();
+  }));
+});
+async function docxToText(file){
+  const buf=new Uint8Array(await file.arrayBuffer());
+  const dv=new DataView(buf.buffer);
+  let i=0, xml=null;
+  while(i<buf.length-30){
+    if(dv.getUint32(i,true)!==0x04034b50) break;
+    const flags=dv.getUint16(i+6,true);
+    const comp=dv.getUint16(i+8,true);
+    const csize=dv.getUint32(i+18,true);
+    const nlen=dv.getUint16(i+26,true);
+    const elen=dv.getUint16(i+28,true);
+    const name=new TextDecoder().decode(buf.subarray(i+30,i+30+nlen));
+    const dataStart=i+30+nlen+elen;
+    if(name==='word/document.xml'){
+      if((flags&8)&&!csize) throw new Error('streamed');
+      const raw=buf.subarray(dataStart,dataStart+csize);
+      let bytes;
+      if(comp===0) bytes=raw;
+      else {
+        const ds=new DecompressionStream('deflate-raw');
+        bytes=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer());
+      }
+      xml=new TextDecoder().decode(bytes);
+      break;
+    }
+    if(!csize&&(flags&8)) throw new Error('streamed');
+    i=dataStart+csize;
+  }
+  if(!xml) throw new Error('nodoc');
+  const paras=[...xml.matchAll(/<w:p[ \/>][\s\S]*?(?:<\/w:p>|\/>)/g)].map(m=>
+    [...m[0].matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(t=>t[1]).join('')
+  );
+  return paras.join('\n')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&#(\d+);/g,(m,n)=>String.fromCodePoint(+n)).replace(/&amp;/g,'&')
+    .replace(/\n{3,}/g,'\n\n').trim();
+}
+$('#noteFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    let body;
+    if(/\.docx$/i.test(f.name)) body=await docxToText(f);
+    else body=(await f.text()).replace(/\r\n/g,'\n').trim();
+    if(!body){ toast('文件是空的？'); return; }
+    let title=f.name.replace(/\.(md|txt|docx)$/i,'').slice(0,40);
+    const fm=body.match(/^#\s+(.+)\n+/);
+    if(fm){ title=fm[1].trim().slice(0,40); body=body.slice(fm[0].length); }
+    const ts=f.lastModified?new Date(f.lastModified):null;
+    openEditor(impType,null,'edit');
+    $('#nTitle2').value=title;
+    $('#nBody2').value=body;
+    if(ts&&!isNaN(ts)){
+      const pad=n=>String(n).padStart(2,'0');
+      importTs=`${ts.getFullYear()}-${pad(ts.getMonth()+1)}-${pad(ts.getDate())}T${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
+    }
+    toast('已读入，过目后记得保存'+(importTs?' · 日期取自文件：'+fmtMD(importTs.slice(0,10)):''));
+  }catch(err){
+    toast('这个文件我啃不动，试试另存为 txt 或 md 再导');
+  }
 });
 RENDER['scr-notes']=renderNotes;
 
@@ -1408,20 +1588,42 @@ $('#cycSwitch').addEventListener('click',()=>{
 RENDER['scr-cycle']=renderCycle;
 
 /* ================= words ================= */
-let wTab='mom';
+let wTab='mom', wPer='all', wDt='any';
+const PERIODS=[['all','全时段'],['morning','清晨'],['noon','中午'],['afternoon','下午'],['evening','傍晚'],['late','深夜']];
+const PERNAME=Object.fromEntries(PERIODS);
+const DTS=[['any','通用'],['work','工作日'],['rest','休息日'],['date','特定日期']];
+const DTNAME=Object.fromEntries(DTS);
+function dtLabel(w){
+  if(!w.dt||w.dt==='any') return '';
+  if(w.dt==='date'&&w.date) return (+w.date.slice(0,2))+'.'+(+w.date.slice(3,5));
+  return DTNAME[w.dt]||'';
+}
 const WHINTS={
-  mom:'主页 95% 抽未显示的句子，抽中标为已显示；5% 让老句子回来看看你。全部显示过就重新循环。',
-  essay:'看到好句子随手存进来，主页会和「妈咪说」一起参与抽取。',
-  open:'开屏语单独管理，不参与话语集抽取。内置一套会轮换，这里可以加你自己的。'
+  mom:'可选日期条件＋时段：工作日的句子只在周一到周五出现；特定日期的句子每年那一天独占全场。95/5 未显示优先的规则照旧。',
+  essay:'看到好句子随手存进来，和「妈咪说」一起参与抽取，同样支持日期条件和时段。',
+  open:'开屏语单独管理，不参与话语集抽取。选好时间段再添加，深夜的句子只在深夜出现。'
 };
 function renderWords(){
   $('#wHint').textContent=WHINTS[wTab];
   $('#wInput').placeholder=wTab==='mom'?'妈咪说了什么…':wTab==='essay'?'记一句好句子…':'写一句开屏语…';
+  const wp=$('#wPeriod'), wdt=$('#wDt');
+  wp.style.display='';
+  wp.innerHTML=PERIODS.map(([k,n])=>`<button class="chip${k===wPer?' on':''}" data-p="${k}">${n}</button>`).join('');
+  wp.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ wPer=c.dataset.p; renderWords(); }));
+  if(wTab!=='open'){
+    wdt.style.display='';
+    wdt.innerHTML=DTS.map(([k,n])=>`<button class="chip${k===wDt?' on':''}" data-dt="${k}">${n}</button>`).join('');
+    wdt.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ wDt=c.dataset.dt; renderWords(); }));
+    $('#wDateWrap').style.display=wDt==='date'?'':'none';
+    if(!$('#wDate').value) $('#wDate').value=TODAY;
+  } else { wdt.style.display='none'; $('#wDateWrap').style.display='none'; }
   const arr=D.words[wTab];
   $('#wList').innerHTML=arr.length? arr.map((w,i)=>`
     <div class="wcard"><p>${esc(w.t)}${w.t2?`<br><span style="font-size:12.5px;color:var(--sub)">${esc(w.t2)}</span>`:''}</p>
       <div class="wfoot"><span>${esc(w.d||'')}</span>
-        ${wTab==='open'?'':`<span class="status ${w.seen?'seen':''}"><i></i>${w.seen?'已显示':'未显示'}</span>`}
+        ${dtLabel(w)?`<span>${dtLabel(w)}</span>`:''}
+        ${(w.p&&w.p!=='all')?`<span>${PERNAME[w.p]}</span>`:''}
+        ${wTab==='open'?`<span class="status seen" style="margin-left:auto">${PERNAME[w.p||'all']}</span>`:`<span class="status ${w.seen?'seen':''}"><i></i>${w.seen?'已显示':'未显示'}</span>`}
       </div>
       <button class="wdel" data-i="${i}">×</button>
     </div>`).join('') : '<p class="empty">还没有内容，添加第一句吧</p>';
@@ -1436,29 +1638,60 @@ $$('#wTabs .pill').forEach(p=>p.addEventListener('click',()=>{
 $('#wAdd').addEventListener('click',()=>{
   const t=$('#wInput').value.trim(); if(!t){ toast('先写第一行～'); return; }
   const t2=$('#wInput2').value.trim();
-  const item={t,d:fmtMD(TODAY),seen:false};
+  const item={t,d:fmtMD(TODAY),seen:false,p:wPer};
   if(t2) item.t2=t2;
+  if(wTab!=='open'){
+    item.dt=wDt;
+    if(wDt==='date'){
+      const dv=$('#wDate').value;
+      if(!dv){ toast('特定日期要选个日子呀'); return; }
+      item.date=dv.slice(5);
+    }
+  }
   D.words[wTab].push(item);
-  $('#wInput').value=''; $('#wInput2').value=''; save(); renderWords(); toast('已收藏');
+  $('#wInput').value=''; $('#wInput2').value='';
+  save(); renderWords();
+  const lbl=[wTab!=='open'?DTNAME[wDt]:null, PERNAME[wPer]].filter(Boolean).join(' · ');
+  toast('已添加 · '+lbl);
 });
 RENDER['scr-words']=renderWords;
 
 /* ================= records ================= */
-let recR='m', recF='all', recD=TODAY;
+let recR='m', recF='all', recD=TODAY, recM=TODAY.slice(0,7), recY=TODAY.slice(0,4);
 function inRange(dateStr){
   if(recR==='d') return dateStr===recD;
-  if(recR==='m') return dateStr.startsWith(TODAY.slice(0,7));
-  return dateStr.startsWith(TODAY.slice(0,4));
+  if(recR==='m') return dateStr.startsWith(recM);
+  return dateStr.startsWith(recY);
 }
-$('#dPrev').addEventListener('click',()=>{ recD=addDays(recD,-1); renderRecords(); });
-$('#dNext').addEventListener('click',()=>{ if(recD<TODAY){ recD=addDays(recD,1); renderRecords(); } });
+function shiftMonth(ym,delta){
+  let y=+ym.slice(0,4), m=+ym.slice(5,7)+delta;
+  while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+function recLabel(){
+  if(recR==='d') return recD===TODAY?'今日':fmtMD(recD);
+  if(recR==='m') return (recM===TODAY.slice(0,7)?'':recM.slice(0,4)+'年')+(+recM.slice(5,7))+'月';
+  return recY+'年';
+}
+$('#dPrev').addEventListener('click',()=>{
+  if(recR==='d') recD=addDays(recD,-1);
+  else if(recR==='m') recM=shiftMonth(recM,-1);
+  else recY=String(+recY-1);
+  renderRecords();
+});
+$('#dNext').addEventListener('click',()=>{
+  if(recR==='d'){ if(recD<TODAY) recD=addDays(recD,1); }
+  else if(recR==='m'){ if(recM<TODAY.slice(0,7)) recM=shiftMonth(recM,1); }
+  else { if(recY<TODAY.slice(0,4)) recY=String(+recY+1); }
+  renderRecords();
+});
 function renderRecords(){
-  $('#dayNav').style.display=recR==='d'?'flex':'none';
-  $('#dLabel').textContent=fmtMD(recD)+(recD===TODAY?' · 今天':'');
+  $('#dayNav').style.display='flex';
+  $('#dLabel').textContent=recLabel()+((recR==='d'&&recD===TODAY)?' · 今天':'');
   const logs=D.log.filter(l=>inRange(l.date));
   const discs=D.disc.filter(d=>inRange(d.date));
   $('#recBig').textContent=logs.length;
-  $('#recDim').textContent='件 · '+(recR==='d'?(recD===TODAY?'今日':fmtMD(recD)):recR==='m'?(+TODAY.slice(5,7))+'月':TODAY.slice(0,4)+'年')+'完成';
+  $('#recDim').textContent='件 · '+recLabel()+'完成';
   const tot=logs.length+discs.length;
   $('#recCap').textContent=`废弃 ${discs.length} 件`+(tot?` · 完成率 ${Math.round(logs.length/tot*100)}%`:'');
   // by type
@@ -1494,6 +1727,31 @@ $$('#recRange .pill').forEach(p=>p.addEventListener('click',()=>{
   $$('#recRange .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on');
   recR=p.dataset.r; renderRecords();
 }));
+$('#recExport').addEventListener('click',()=>{
+  const logs=D.log.filter(l=>inRange(l.date));
+  let title, rows;
+  if(recF==='disc'){
+    const discs=D.disc.filter(d=>inRange(d.date));
+    title=`小记 · 废弃清单（${recLabel()}）`;
+    rows=discs.map(d=>`${d.date.slice(5,7)}.${d.date.slice(8,10)}　${d.name}${d.cat?'（'+catOf(d.cat).n+'）':''}`);
+  } else {
+    const fl=recF==='all'?logs:logs.filter(l=>l.cat===recF);
+    title=`小记 · 完成记录（${recLabel()}${recF==='all'?'':' · '+catOf(recF).n}）`;
+    rows=fl.map(l=>`${fmtDT(l.ts)}　${l.name}${(recF==='all'&&l.cat)?'（'+catOf(l.cat).n+'）':''}`);
+  }
+  if(!rows.length){ toast('这个视图是空的，没什么可导'); return; }
+  const text=title+'\n'+rows.join('\n')+'\n—— 共 '+rows.length+' 件';
+  const done=()=>toast('已复制到剪贴板，去粘贴吧');
+  const fail=()=>{
+    const blob=new Blob([text],{type:'text/plain'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='小记导出-'+TODAY.replaceAll('-','')+'.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('剪贴板不可用，已改为下载文件');
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done,fail);
+  else fail();
+});
 RENDER['scr-records']=renderRecords;
 
 /* ================= settings ================= */
@@ -1535,10 +1793,10 @@ function renderSettings(){
   $('#poolM').value=D.miles.map(m=>m.n+'|'+m.t).join('\n');
   const tl=$('#tplList');
   tl.innerHTML=D.tpl.length? D.tpl.map((p,i)=>`
-    <div class="tpl-row"><span class="sp ${p.active===false?'off':''}">${esc(p.name)} ${tagHTML(p.cat)}</span>
+    <div class="tpl-row"><span class="sp ${p.active===false?'off':''}">${esc(p.name)} ${tagHTML(p.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${tplFreqLabel(p)}</span></span>
       <button data-a="t" data-i="${i}">${p.active===false?'启用':'停用'}</button>
       <button data-a="d" data-i="${i}">删除</button></div>`).join('')
-    : '<p class="empty" style="padding:10px">还没有每日任务<br>在任务页 + 里选「每日」创建</p>';
+    : '<p class="empty" style="padding:10px">还没有循环任务<br>在任务页 + 里选「循环」创建</p>';
   $$('#tplList button').forEach(b=>b.addEventListener('click',()=>{
     const p=D.tpl[+b.dataset.i];
     if(b.dataset.a==='t'){ p.active=p.active===false; save(); renderSettings(); }
