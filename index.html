@@ -562,6 +562,12 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <input type="text" id="setNick" maxlength="12" style="width:100%">
       </div>
       <div class="setcard">
+        <h4>工作流模板</h4>
+        <p class="desc">一行一步；步骤后加 ? 表示可跳过；用 [变体名] 分组做分支；可设每月几号自动开始（设定当月请手动发起，下个周期起自动出现，默认第一个变体）。</p>
+        <div id="flowList"></div>
+        <button class="btn" id="flowAdd" style="margin-top:10px">新建模板</button>
+      </div>
+      <div class="setcard">
         <h4>纪念日</h4>
         <p class="desc">最近的一个会显示在任务页日期旁；每年重复的（生日、纪念日）年年倒数，一次性的到期后自动消失</p>
         <div id="anniList"></div>
@@ -640,7 +646,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.0 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v2.1 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
     </div>
   </section>
 
@@ -673,16 +679,27 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
 <div class="sheet-scrim" id="sheetScrim"></div>
 <div class="sheet" id="sheet">
   <h3 id="sheetTitle">新任务</h3>
-  <label>任务名称</label>
-  <input type="text" id="tName" placeholder="要做什么？" maxlength="60">
+  <div id="tNameWrap">
+    <label>任务名称</label>
+    <input type="text" id="tName" placeholder="要做什么？" maxlength="60">
+  </div>
   <label>任务类型</label>
-  <span class="pills" id="tTypePills">
+  <span class="pills" id="tTypePills" style="flex-wrap:wrap">
     <button class="pill on" data-t="once">当日</button>
     <button class="pill" data-t="daily">循环</button>
     <button class="pill" data-t="span">跨时段</button>
     <button class="pill" data-t="idle">长期</button>
+    <button class="pill" data-t="flow">流程</button>
   </span>
   <p class="futnote" id="idleNote" style="display:none">🛋 长期任务：没有期限，不会过期，躺到你完成为止</p>
+  <div id="tFlowWrap" style="display:none">
+    <label>选择流程模板（在 设置→工作流模板 里创建）</label>
+    <div class="catgrid" id="tFlowTmpls"></div>
+    <div id="tFlowVars" style="display:none">
+      <label>哪种情况？</label>
+      <div class="catgrid" id="tFlowVarChips"></div>
+    </div>
+  </div>
   <div id="tFreqWrap" style="display:none">
     <label>循环方式</label>
     <span class="pills" id="freqPills">
@@ -800,6 +817,8 @@ if(D.s.taskStyle===undefined) D.s.taskStyle='box';
 D.tpl.forEach(p=>{ if(!p.freq) p.freq='daily'; if(!p.created) p.created=D.lastOpen||todayISO(); });
 /* v2.0 migration */
 if(!D.anni) D.anni=[];
+/* v2.1 migration */
+if(!D.flows) D.flows={tmpl:[],inst:[]};
 if(!D.moods){
   D.moods=[];
   if(D.mood) Object.keys(D.mood).forEach(k=>{ const m=D.mood[k]; D.moods.push({id:uid()+k.slice(8),ts:k+'T12:00',date:k,v:m.v,note:m.note||'',src:'mood'}); });
@@ -959,8 +978,40 @@ function tplFreqLabel(p){
   if(f==='monthly') return '每月'+(p.md||1)+'日';
   return '每日';
 }
+/* ---- workflow (流程) ---- */
+function parseFlow(body){
+  const lines=(body||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const variants=[]; let cur=null;
+  for(const ln of lines){
+    const m=ln.match(/^[\[【](.+?)[\]】]$/);
+    if(m){ cur={n:m[1].trim(),steps:[]}; variants.push(cur); continue; }
+    if(!cur){ cur={n:'',steps:[]}; variants.push(cur); }
+    const opt=/[?？]$/.test(ln);
+    const nm=ln.replace(/[?？]$/,'').trim();
+    if(nm) cur.steps.push({n:nm,opt});
+  }
+  return variants.filter(v=>v.steps.length);
+}
+function spawnFlow(tm,varIdx){
+  const vs=parseFlow(tm.body);
+  const vv=vs[Math.min(varIdx||0,vs.length-1)];
+  if(!vv) return null;
+  const f={id:uid(),tmpl:tm.id,n:tm.n,cat:tm.cat,variant:vs.length>1?vv.n:'',steps:vv.steps.map(s=>({n:s.n,opt:s.opt,done:false,skip:false,ts:null,logId:null})),started:TODAY};
+  D.flows.inst.push(f);
+  return f;
+}
+function ensureFlows(){
+  let changed=false;
+  D.flows.tmpl.forEach(t=>{
+    if(!t.md) return;
+    const ws=tplWindow({freq:'monthly',md:t.md});
+    if(t.lastWin!==ws){ t.lastWin=ws; if(spawnFlow(t,0)) changed=true; }
+  });
+  if(changed) save();
+}
 function virtualTasks(){
   const out=[];
+  D.flows.inst.forEach(f=>out.push({kind:'flow',id:f.id,name:f.n,cat:f.cat,type:'flow',flow:f}));
   D.tpl.forEach(p=>{
     if(p.active===false || p.skip===TODAY) return;
     const ws=tplWindow(p);
@@ -979,6 +1030,28 @@ function todayTotal(){ return virtualTasks().length + D.log.filter(l=>l.date===T
 function taskEl(v){
   const el=document.createElement('div');
   el.className='task'+(v.reward?' reward-task':'');
+  const useBtnF=D.s.taskStyle==='btn';
+  const ckStr='<button class="ck"><svg viewBox="0 0 24 24"><path class="tick" d="M5.5 12.5l4 4L18.5 8"/></svg></button>';
+  const btnStr='<button class="donebtn">完成</button>';
+  if(v.kind==='flow'){
+    const f=v.flow;
+    const idx=f.steps.findIndex(s=>!s.done&&!s.skip);
+    const doneN=f.steps.filter(s=>s.done||s.skip).length, total=f.steps.length;
+    const cs=idx>=0?f.steps[idx]:null;
+    el.innerHTML=`
+      ${useBtnF?'':ckStr}
+      <div class="tmain">
+        <div class="tname">${esc(f.n)}${f.variant?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.variant)}</span>`:''}</div>
+        <div class="tmeta">${tagHTML(f.cat)}<span>流程 · 第 ${Math.min(doneN+1,total)} / ${total} 步</span></div>
+        ${cs?`<div style="font-size:13px;color:var(--sage-deep);margin-top:6px">▸ ${esc(cs.n)}${cs.opt?'<span style="color:var(--faint);font-size:11px">（可跳过）</span>':''}</div>`:''}
+        <div class="tprog"><div class="bar2"><i style="width:${Math.round(doneN/total*100)}%"></i></div></div>
+      </div>
+      ${useBtnF?btnStr:''}
+      <button class="tmore">⋯</button>`;
+    el.querySelector(useBtnF?'.donebtn':'.ck').addEventListener('click',()=>completeFlowStep(el,f));
+    el.querySelector('.tmore').addEventListener('click',()=>flowActions(f));
+    return el;
+  }
   let meta=tagHTML(v.cat, v.reward?'奖励':null);
   if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
   else if(v.type==='span') meta+=`<span>跨时段 · 至 ${fmtMD(v.end)}</span>`;
@@ -1032,7 +1105,7 @@ function renderTasks(){
   ).join('') : '<p class="empty">还没有，不急。</p>';
   $$('#doneList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderTasks)));
 }
-RENDER['scr-tasks']=function(){ pickQuote(); renderTasks(); };
+RENDER['scr-tasks']=function(){ ensureFlows(); pickQuote(); renderTasks(); };
 function completeVirtual(el,v){
   if(el.classList.contains('done'))return;
   el.classList.add('done');
@@ -1047,6 +1120,67 @@ function completeVirtual(el,v){
     setTimeout(()=>{ renderTasks(); },580);
     if(!v.reward) gacha();
   },380);
+}
+function completeFlowStep(el,f){
+  const i=f.steps.findIndex(s=>!s.done&&!s.skip);
+  if(i<0) return;
+  if(el.classList.contains('done')) return;
+  el.classList.add('done');
+  setTimeout(()=>{
+    const s=f.steps[i];
+    s.done=true; s.ts=tsNow();
+    const lid=uid(); s.logId=lid;
+    D.log.push({id:lid,name:`${f.n}｜${s.n}`,cat:f.cat,ts:s.ts,date:TODAY,src:'flow'});
+    const rest=f.steps.some(x=>!x.done&&!x.skip);
+    save();
+    if(!rest){
+      el.classList.add('leave');
+      setTimeout(()=>{
+        D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id);
+        save(); renderTasks(); toast(`流程「${f.n}」全部完成 ✦`);
+      },560);
+    } else {
+      setTimeout(()=>{ renderTasks(); },400);
+    }
+    gacha();
+  },380);
+}
+function flowActions(f){
+  const idx=f.steps.findIndex(s=>!s.done&&!s.skip);
+  const cs=idx>=0?f.steps[idx]:null;
+  const lastDone=f.steps.map((s,i)=>s.done?i:-1).filter(i=>i>=0).pop();
+  let h=`<h5>${esc(f.n)}${f.variant?' · '+esc(f.variant):''} · 步骤明细</h5>
+    <div style="max-height:36dvh;overflow-y:auto;margin-bottom:10px">`+
+    f.steps.map((s,i)=>`<div style="display:flex;gap:9px;font-size:13px;padding:7px 4px;border-bottom:1px solid var(--line);${i===idx?'color:var(--sage-deep);font-weight:600':''}">
+      <span style="flex:none;width:16px">${s.done?'✓':s.skip?'⤼':(i===idx?'▸':'○')}</span>
+      <span style="flex:1">${esc(s.n)}${s.opt?'<small style="color:var(--faint)">（可跳过）</small>':''}</span>
+      <span style="flex:none;color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums">${s.done&&s.ts?fmtDT(s.ts):(s.skip?'已跳过':'')}</span>
+    </div>`).join('')+`</div>`;
+  if(cs&&cs.opt) h+=`<button class="act" data-a="skip">跳过当前步 · ${esc(cs.n)}</button>`;
+  if(lastDone!==undefined) h+=`<button class="act" data-a="undo">撤销上一步 · ${esc(f.steps[lastDone].n)}（红冲）</button>`;
+  h+=`<button class="act danger" data-a="drop">放弃流程（已完成的步骤保留记录）</button>`;
+  openMini(h);
+  const sk=mini.querySelector('[data-a="skip"]');
+  if(sk) sk.addEventListener('click',()=>{
+    cs.skip=true;
+    const rest=f.steps.some(s=>!s.done&&!s.skip);
+    if(!rest){ D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id); toast(`流程「${f.n}」全部完成 ✦`); }
+    else toast('已跳过这一步');
+    save(); closeMini(); renderTasks();
+  });
+  const ud=mini.querySelector('[data-a="undo"]');
+  if(ud) ud.addEventListener('click',()=>{
+    const s=f.steps[lastDone];
+    s.done=false; s.ts=null;
+    if(s.logId){ D.log=D.log.filter(l=>l.id!==s.logId); s.logId=null; }
+    // 撤销上一步之后，中间被跳过的步骤保持跳过状态
+    save(); closeMini(); renderTasks(); toast('已红冲一步，记录同步删除');
+  });
+  mini.querySelector('[data-a="drop"]').addEventListener('click',()=>{
+    if(!confirm('放弃这个流程？已完成的步骤仍算完成，不记废弃')) return;
+    D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id);
+    save(); closeMini(); renderTasks(); toast('已放弃 · 走过的路都算数');
+  });
 }
 /* ---- mini action sheet ---- */
 const mini=$('#mini'), miniScrim=$('#miniScrim');
@@ -1095,9 +1229,29 @@ function changeCat(logId,after){
 }
 
 /* ---- new task sheet ---- */
-let sheetType='once', sheetCat='work', sheetFreq='daily', sheetWd=1;
+let sheetType='once', sheetCat='work', sheetFreq='daily', sheetWd=1, sheetTmpl=null, sheetVar=0;
+function renderFlowChoices(){
+  const box=$('#tFlowTmpls');
+  if(!D.flows.tmpl.length){
+    box.innerHTML='<p class="empty" style="padding:6px;text-align:left">还没有模板<br>去 设置 → 工作流模板 建一个</p>';
+    $('#tFlowVars').style.display='none';
+    return;
+  }
+  box.innerHTML=D.flows.tmpl.map(t=>{
+    const col=catColor(catOf(t.cat));
+    return `<button class="chip${t.id===sheetTmpl?' on':''}" data-ft="${t.id}" style="${t.id===sheetTmpl?`background:${col};border-color:${col}`:`color:${col}`}">${esc(t.n)}</button>`;
+  }).join('');
+  box.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ sheetTmpl=c.dataset.ft; sheetVar=0; renderFlowChoices(); }));
+  const tm=D.flows.tmpl.find(t=>t.id===sheetTmpl);
+  const vs=tm?parseFlow(tm.body):[];
+  if(vs.length>1){
+    $('#tFlowVars').style.display='';
+    $('#tFlowVarChips').innerHTML=vs.map((v,i)=>`<button class="chip${i===sheetVar?' on':''}" data-fv="${i}">${esc(v.n||('变体'+(i+1)))}</button>`).join('');
+    $('#tFlowVarChips').querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ sheetVar=+c.dataset.fv; renderFlowChoices(); }));
+  } else $('#tFlowVars').style.display='none';
+}
 function openSheet(){
-  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1;
+  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1; sheetTmpl=null; sheetVar=0;
   $('#tName').value=''; $('#tDate').value=TODAY;
   $('#tStart').value=TODAY; $('#tEnd').value=addDays(TODAY,29);
   $('#tN').value=3; $('#tMd').value=Math.min(28,+TODAY.slice(8,10));
@@ -1132,6 +1286,12 @@ function syncSheetType(){
   $('#tSpanWrap').style.display=sheetType==='span'?'':'none';
   $('#tFreqWrap').style.display=sheetType==='daily'?'':'none';
   $('#idleNote').style.display=sheetType==='idle'?'block':'none';
+  $('#tFlowWrap').style.display=sheetType==='flow'?'':'none';
+  $('#tNameWrap').style.display=sheetType==='flow'?'none':'';
+  $('#tCats').parentElement&&($('#tCats').style.display=sheetType==='flow'?'none':'');
+  const catLabel=$('#tCats').previousElementSibling;
+  if(catLabel) catLabel.style.display=sheetType==='flow'?'none':'';
+  if(sheetType==='flow') renderFlowChoices();
   syncFreq(); checkFut();
 }
 function checkFut(){ $('#futNote').style.display=($('#tDate').value>TODAY)?'block':'none'; }
@@ -1144,6 +1304,15 @@ function renderSheetCats(){
   $$('#tCats .chip').forEach(c=>c.addEventListener('click',()=>{ sheetCat=c.dataset.c; renderSheetCats(); }));
 }
 $('#tSave').addEventListener('click',()=>{
+  if(sheetType==='flow'){
+    const tm=D.flows.tmpl.find(t=>t.id===sheetTmpl);
+    if(!tm){ toast('先选一个流程模板'); return; }
+    const f=spawnFlow(tm,sheetVar);
+    if(!f){ toast('这个模板还没有步骤'); return; }
+    save(); closeSheet(); renderTasks();
+    toast(`流程已开始 · ${tm.n}${f.variant?'（'+f.variant+'）':''}`);
+    return;
+  }
   const name=$('#tName').value.trim();
   if(!name){ toast('给任务起个名字吧'); return; }
   if(sheetType==='daily'){
@@ -2029,6 +2198,19 @@ function renderSettings(){
       D.notes.types.splice(i,1); save(); renderSettings(); toast('已删除，文章已并入');
     }
   }));
+  // flow templates
+  $('#flowList').innerHTML=D.flows.tmpl.length? D.flows.tmpl.map((t,i)=>{
+    const vs=parseFlow(t.body);
+    const stepsN=vs.reduce((a,v)=>a+v.steps.length,0);
+    return `<div class="tpl-row"><span class="sp">${esc(t.n)} ${tagHTML(t.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${vs.length>1?vs.length+'变体·':''}${stepsN}步${t.md?' · 每月'+t.md+'日':''}</span></span>
+      <button data-fa="e" data-i="${i}">编辑</button>
+      <button data-fa="x" data-i="${i}">删除</button></div>`;
+  }).join('') : '<p class="empty" style="padding:8px">还没有模板</p>';
+  $$('#flowList button').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.i, t=D.flows.tmpl[i];
+    if(b.dataset.fa==='e') flowEditor(t);
+    else if(confirm(`删除模板「${t.n}」？进行中的流程不受影响`)){ D.flows.tmpl.splice(i,1); save(); renderSettings(); }
+  }));
   // anniversaries
   $('#anniList').innerHTML=D.anni.length? D.anni.map((a,i)=>`
     <div class="tpl-row"><span class="sp">${esc(a.n)}<span style="color:var(--faint);font-size:11px">&ensp;${a.yearly?'每年 '+(+a.date.slice(0,2))+'.'+(+a.date.slice(3,5)):a.date.replace(/-/g,'.')}</span></span>
@@ -2116,6 +2298,46 @@ $('#catAdd').addEventListener('click',()=>{
   $('#catInput').value=''; save(); renderSettings(); toast('新类型已添加');
 });
 $('#setNick').addEventListener('change',()=>{ D.s.nick=$('#setNick').value.trim()||'青沐'; save(); toast('记住啦'); });
+function flowEditor(t){
+  let fwCat=t?t.cat:(D.cats[0]||{id:'work'}).id;
+  openMini(`<h5>${t?'编辑':'新建'}工作流模板</h5>
+    <input id="fwName" class="edin" style="background:var(--bg);margin-bottom:8px" placeholder="流程名称（如：开发票）" maxlength="12" value="${t?esc(t.n):''}">
+    <label>类型</label>
+    <div class="catwrap" id="fwCats" style="margin-bottom:8px">${D.cats.map(c=>{
+      const col=catColor(c), on=c.id===fwCat;
+      return `<button class="chip${on?' on':''}" data-fc="${c.id}" style="${on?`background:${col};border-color:${col}`:`color:${col}`}">${esc(c.n)}</button>`;
+    }).join('')}</div>
+    <label>每月几号自动开始（留空 = 只手动发起）</label>
+    <input id="fwMd" class="edin" inputmode="numeric" style="background:var(--bg);margin-bottom:8px;width:110px" value="${t&&t.md?t.md:''}">
+    <label>步骤 · 一行一步 · ?可跳过 · [变体名]分支</label>
+    <textarea id="fwBody" placeholder="催同事确认增减员&#10;新增人员录入?&#10;提交报验&#10;申报&#10;缴费&#10;开具完税证明" style="width:100%;min-height:150px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:11px 13px;font-size:13px;color:var(--ink);font-family:var(--sans);outline:none;line-height:1.8;resize:vertical">${t?esc(t.body):''}</textarea>
+    <button class="act" data-a="sv" style="background:var(--sage);color:#FBFBF6;text-align:center;margin-top:10px">保存模板</button>`);
+  mini.querySelectorAll('[data-fc]').forEach(b=>b.addEventListener('click',()=>{
+    fwCat=b.dataset.fc;
+    mini.querySelectorAll('[data-fc]').forEach(x=>{
+      const c=catOf(x.dataset.fc), col=catColor(c), on=x.dataset.fc===fwCat;
+      x.classList.toggle('on',on);
+      x.style.cssText=on?`background:${col};border-color:${col};color:#FBFBF6`:`color:${col}`;
+    });
+  }));
+  mini.querySelector('[data-a="sv"]').addEventListener('click',()=>{
+    const n=$('#fwName').value.trim();
+    if(!n){ toast('给流程起个名字'); return; }
+    const body=$('#fwBody').value;
+    if(!parseFlow(body).length){ toast('至少写一个步骤'); return; }
+    let md=parseInt($('#fwMd').value)||null;
+    if(md) md=Math.min(31,Math.max(1,md));
+    if(t){
+      const mdChanged=md!==t.md;
+      t.n=n; t.cat=fwCat; t.body=body; t.md=md;
+      if(mdChanged) t.lastWin=md?tplWindow({freq:'monthly',md}):null;
+    } else {
+      D.flows.tmpl.push({id:uid(),n,cat:fwCat,md,body,lastWin:md?tplWindow({freq:'monthly',md}):null});
+    }
+    save(); closeMini(); renderSettings(); toast('模板已保存');
+  });
+}
+$('#flowAdd').addEventListener('click',()=>flowEditor(null));
 let anniYearly=true;
 $$('[data-ay]').forEach(p=>p.addEventListener('click',()=>{
   $$('[data-ay]').forEach(x=>x.classList.remove('on')); p.classList.add('on');
@@ -2218,7 +2440,7 @@ $('#wipeBtn').addEventListener('click',()=>{
 RENDER['scr-settings']=renderSettings;
 
 /* ================= boot ================= */
-renderHomeTop(); updatePendBadge();
+renderHomeTop(); updatePendBadge(); ensureFlows();
 </script>
 </body>
 </html>
