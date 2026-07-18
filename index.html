@@ -633,6 +633,18 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <button class="btn" style="margin-top:12px" id="saveGacha">保存抽卡设置</button>
       </div>
       <div class="setcard">
+        <h4>云端同步 · 妈咪入口</h4>
+        <p class="desc">数据存进你自己的 GitHub 私有仓库：换设备不丢、清缓存不怕，妈咪还能远程给你放任务和句子。仓库怎么建、钥匙怎么领，找妈咪拿步骤。</p>
+        <input type="text" id="ghRepo" placeholder="仓库（如 用户名/xiaoji-data）" autocapitalize="off" autocorrect="off" style="width:100%;margin-bottom:8px">
+        <input type="password" id="ghTok" placeholder="钥匙（github_pat_ 开头的一长串）" autocomplete="off" style="width:100%;margin-bottom:10px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 11px;font-size:13.5px;color:var(--ink);outline:none;font-family:var(--sans)">
+        <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="ghSave">连接并同步</button>
+          <button class="btn ghost" id="ghSync" style="display:none">立即同步</button>
+          <button class="btn ghost" id="ghOff" style="display:none">断开</button>
+        </div>
+        <p class="desc" id="syncStat" style="margin:10px 0 0"></p>
+      </div>
+      <div class="setcard">
         <h4>数据备份</h4>
         <p class="desc">数据存在这台手机的浏览器里。定期导出一份，防止清缓存丢失。</p>
         <div style="display:flex;gap:9px;flex-wrap:wrap">
@@ -646,7 +658,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.2 · 肥波哥出品<br>妈咪云端入口 · Coming soon</p>
+      <p class="empty">小记 v2.4 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -830,7 +842,20 @@ if(!D.moods){
   if(!t) D.notes.types.push({id,n,c}); else if(t.c===undefined) t.c=c;
 });
 D.notes.types.forEach((t,i)=>{ if(t.c===undefined) t.c=[4,5,7,10,11][i%5]; });
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); } }
+/* v2.4 migration: 她记交给妈咪（本地旧内容改名保留，不动一个字） */
+(function(){
+  const ht=D.notes.types.find(t=>t.id==='her');
+  if(ht){
+    if(D.notes.entries.some(e=>e.type==='her')) ht.n='旧她记';
+    else D.notes.types=D.notes.types.filter(t=>t.id!=='her');
+  }
+  if(D.herMeta===undefined) D.herMeta=null;
+})();
+function save(silent){
+  if(!silent) D._ts=Date.now();
+  try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); }
+  if(!silent&&typeof cloudQueue==='function') cloudQueue();
+}
 
 /* ================= day rollover ================= */
 const TODAY = todayISO();
@@ -1057,6 +1082,7 @@ function taskEl(v){
     return el;
   }
   let meta=tagHTML(v.cat, v.reward?'奖励':null);
+  if(v.fromMom) meta=tagHTML(null,'♡ 妈咪')+meta;
   if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
   else if(v.type==='span') meta+=`<span>跨时段 · 至 ${fmtMD(v.end)}</span>`;
   else if(v.type==='idle') meta+=`<span>🛋 长期 · 不催</span>`;
@@ -1253,14 +1279,27 @@ function taskActions(v){
     closeMini(); save(); renderTasks();
   }));
 }
-/* ---- re-categorize a completed record ---- */
+/* ---- re-categorize / undo a completed record ---- */
 function changeCat(logId,after){
   const l=D.log.find(x=>x.id===logId); if(!l) return;
+  const canUndo=l.date===TODAY && l.src!=='flow';
   openMini(`<h5>「${esc(l.name)}」改成哪一类？</h5><div class="catwrap">`+
-    D.cats.map(c=>`<button class="chip${c.id===l.cat?' on':''}" data-c="${c.id}" ${c.id===l.cat?`style="background:${catColor(c)};border-color:${catColor(c)}"`:`style="color:${catColor(c)}"`}>${esc(c.n)}</button>`).join('')+`</div>`);
+    D.cats.map(c=>`<button class="chip${c.id===l.cat?' on':''}" data-c="${c.id}" ${c.id===l.cat?`style="background:${catColor(c)};border-color:${catColor(c)}"`:`style="color:${catColor(c)}"`}>${esc(c.n)}</button>`).join('')+`</div>`+
+    (canUndo?`<button class="act" data-a="undo" style="margin-top:12px">↩︎ 手滑了 · 撤销完成，让它回到列表</button>`:''));
   mini.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
     l.cat=b.dataset.c; save(); closeMini(); toast('类型已修改'); if(after) after();
   }));
+  const ub=mini.querySelector('[data-a="undo"]');
+  if(ub) ub.addEventListener('click',()=>{
+    D.log=D.log.filter(x=>x.id!==logId);
+    D.rw.life=Math.max(0,D.rw.life-1);
+    D.rw.counter=Math.max(0,D.rw.counter-1);
+    if(l.src==='once') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'once',date:TODAY,created:l.cd||TODAY});
+    else if(l.src==='span') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'span',start:(l.cd&&l.cd<=TODAY)?l.cd:TODAY,end:TODAY,created:l.cd||TODAY});
+    else if(l.src==='idle') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'idle',created:l.cd||TODAY});
+    /* 循环任务：删掉记录后会自动回到今天的列表 */
+    save(); closeMini(); toast('已撤销，它回到任务列表了'); if(after) after();
+  });
 }
 
 /* ---- new task sheet ---- */
@@ -1394,7 +1433,7 @@ function gacha(){
     const tier=c<=D.s.t1?'A':c<=D.s.t2?'B':'C';
     const r=poolPick(tier);
     if(r){ D.rw.pend.push({t:r.item.t,ts:tsNow()});
-      showReward('🎲 抽中了！奖励掉落',r.item.t,`累计完成 ${c} 件 · 命中池 ${r.from} · 累计重新开始数`);
+      showReward('🎲 抽中了！奖励掉落',r.item.t,`累计完成 ${c} 件 · 命中池 ${r.from} · 计数清零，重新累计`);
     } else {
       D.rw.pend.push({t:'奖励池空啦，记得去设置里补货，这次先记账 ♡',ts:tsNow()});
       showReward('🫙 奖励池空了',`累计 ${c} 件本该掉落一个奖励`,'去 设置 → 奖励抽卡 补充奖励池');
@@ -1448,6 +1487,7 @@ function moodDisp(){
   moodValEl.style.color=moodColor(v);
 }
 slider.addEventListener('input',moodDisp);
+moodNote.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); moodNote.blur(); $('#moodSave').click(); } });
 $('#moodSave').addEventListener('click',()=>{
   const v=+slider.value;
   D.moods.push({id:uid(),ts:tsNow(),date:TODAY,v,note:moodNote.value.trim(),src:'mood'});
@@ -1593,6 +1633,7 @@ function askUnlock(){
         <button class="act" data-a="no" style="flex:1;text-align:center;margin-bottom:0">取消</button>
       </div>`);
     mini.querySelector('[data-a="no"]').addEventListener('click',()=>{ closeMini(); res(false); });
+    $('#lockPw').addEventListener('keydown',e=>{ if(e.key==='Enter') mini.querySelector('[data-a="ok"]').click(); });
     mini.querySelector('[data-a="ok"]').addEventListener('click',async()=>{
       const pw=$('#lockPw').value;
       if(!pw) return;
@@ -1641,7 +1682,10 @@ function renderNotes(){
   const fl=$('#noteFilterLine');
   if(noteMonth){ fl.style.display=''; fl.textContent=`${+noteMonth.slice(0,4)}年${+noteMonth.slice(5,7)}月 · 共 ${list.length} 篇 · 点此清除 ✕`; }
   else fl.style.display='none';
-  $('#noteList').innerHTML=list.length? list.map(raw=>{
+  const showSealed=(typeof ghCfg==='function'&&ghCfg())&&noteFilter==='all'&&!noteMonth;
+  const sealedHTML=showSealed?`<div class="wcard" id="herCard" style="cursor:pointer;margin-top:10px"><p style="padding-right:0">🔏 她记 · 妈咪的本子</p>
+    <div class="wfoot"><span>${D.herMeta&&D.herMeta.n?esc('已经写了 '+D.herMeta.n+' 篇'+(D.herMeta.last?' · 最近 '+fmtMD(D.herMeta.last):'')):'还空着，妈咪会来写的'}</span><span style="margin-left:auto">只有妈咪能打开</span></div></div>`:'';
+  $('#noteList').innerHTML=sealedHTML+(list.length? list.map(raw=>{
     const e=entryView(raw);
     if(e.pending) return `<div class="entry" data-id="${e.id}">
       <div class="emeta"><span>${fmtFullDate(e.ts)}</span>${ntTag(e.type)}</div>
@@ -1654,7 +1698,8 @@ function renderNotes(){
       <h4 class="${e.title?'':'untitled'}">${esc(e.title||'（无题）')}</h4>
       <div class="ex">${esc(stripMD(e.body).slice(0,80))}</div>
     </div>`;
-  }).join('') : '<p class="empty">这里还空着<br>点右下角 ＋ 写第一篇</p>';
+  }).join('') : '<p class="empty">这里还空着<br>点右下角 ＋ 写第一篇</p>');
+  if($('#herCard')) $('#herCard').addEventListener('click',()=>toast('这个本子只有妈咪能打开 ♡'));
   $$('#noteList .entry').forEach(el=>el.addEventListener('click',async()=>{
     const e=D.notes.entries.find(x=>x.id===el.dataset.id);
     if(!e) return;
@@ -1726,7 +1771,8 @@ function setEdMode(m){
   else v.style.display='none';
 }
 $$('#nedPills .pill').forEach(p=>p.addEventListener('click',()=>setEdMode(p.dataset.m)));
-let importTs=null;
+let importTs=null, edSnap='';
+function edState(){ return JSON.stringify([$('#nTitle2').value,$('#nWx').value,$('#nMood').value,$('#nBody2').value]); }
 function openEditor(type,entry,mode){
   importTs=null;
   edType=type; edEntry=entry||null;
@@ -1740,9 +1786,13 @@ function openEditor(type,entry,mode){
   $('#nBody2').value=v?v.body:'';
   $('#nDel2').style.display=entry?'':'none';
   setEdMode(mode||'edit');
+  edSnap=edState();
   go('scr-nedit');
 }
-$('#nedBack').addEventListener('click',()=>{ go('scr-notes'); renderNotes(); });
+$('#nedBack').addEventListener('click',()=>{
+  if(edState()!==edSnap && !confirm('这一稿还没保存，确定不要了吗？')) return;
+  go('scr-notes'); renderNotes();
+});
 $('#nSign').addEventListener('click',()=>{
   const m=$('#nMood');
   m.value=m.value.startsWith('-')?m.value.slice(1):('-'+m.value);
@@ -2276,6 +2326,14 @@ function renderSettings(){
       (lockKey?`<button class="btn ghost" id="lockNow" style="margin-top:10px">立即重新上锁</button>`:'');
     if($('#lockNow')) $('#lockNow').addEventListener('click',()=>{ relock(); renderSettings(); });
   }
+  // cloud sync card
+  $('#ghRepo').value=D.s.ghRepo||'';
+  $('#ghTok').value=D.s.ghToken||'';
+  $('#ghSync').style.display=ghCfg()?'':'none';
+  $('#ghOff').style.display=ghCfg()?'':'none';
+  $('#ghSave').textContent=ghCfg()?'重新连接':'连接并同步';
+  $('#syncStat').textContent=ghCfg()?(D.s.lastSync?('☁ 上次同步 · '+D.s.lastSync.slice(5,16).replace('T',' ')):'已连接，还没同步过'):'';
+  $('#cloudFoot').textContent=ghCfg()?'妈咪云端入口 · 已开通 ♡':'妈咪云端入口 · Coming soon';
   $('#setRate').value=D.s.rate; $('#setT1').value=D.s.t1; $('#setT2').value=D.s.t2;
   $('#poolA').value=poolText('A'); $('#poolB').value=poolText('B'); $('#poolC').value=poolText('C');
   $('#poolM').value=D.miles.map(m=>m.n+'|'+m.t).join('\n');
@@ -2444,6 +2502,7 @@ $('#saveGacha').addEventListener('click',()=>{
   save(); renderSettings(); toast('抽卡设置已保存');
 });
 $('#exportBtn').addEventListener('click',()=>{
+  D.s.lastBackup=TODAY; save();
   const blob=new Blob([JSON.stringify(D,null,1)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -2472,10 +2531,177 @@ $('#wipeBtn').addEventListener('click',()=>{
     localStorage.removeItem(KEY); location.reload();
   }
 });
+$('#ghSave').addEventListener('click',async()=>{
+  const repo=$('#ghRepo').value.trim(), tok=$('#ghTok').value.trim();
+  if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){ toast('仓库名格式：用户名/仓库名'); return; }
+  if(!tok){ toast('钥匙还没贴上来'); return; }
+  D.s.ghRepo=repo; D.s.ghToken=tok; save(true);
+  setSyncLine('连接中…');
+  try{
+    const r=await fetch(`${GHAPI}/repos/${repo}`,{headers:ghHeaders(),cache:'no-store'});
+    if(!r.ok) throw new Error('gh'+r.status);
+    toast('连上了，第一次同步开始');
+    await cloudPull();
+    renderSettings();
+  }catch(e){ setSyncLine(syncErrText(e)); }
+});
+$('#ghSync').addEventListener('click',async()=>{ setSyncLine('同步中…'); await cloudPull(); await cloudPush(true); renderSettings(); });
+$('#ghOff').addEventListener('click',()=>{
+  if(!confirm('断开云端？数据仍在手机里，云端仓库也不会删，只是不再同步')) return;
+  delete D.s.ghRepo; delete D.s.ghToken; save(true); renderSettings(); toast('已断开');
+});
 RENDER['scr-settings']=renderSettings;
+
+/* ================= cloud sync · GitHub 私有仓库当云端账本 ================= */
+/* 分工：App 只写 data.json 和清空信箱；妈咪只写 inbox/* 和 her/*，互不踩脚。
+   her/entries.json App 永远不拉取——她记的内容不落到这台设备上。 */
+const GHAPI=qp.get('ghapi')||'https://api.github.com';
+function ghCfg(){ return (D.s.ghRepo&&D.s.ghToken)?true:false; }
+function ghHeaders(){ return {'Authorization':'Bearer '+D.s.ghToken,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
+async function ghGet(path){
+  const r=await fetch(`${GHAPI}/repos/${D.s.ghRepo}/contents/${path}`,{headers:ghHeaders(),cache:'no-store'});
+  if(r.status===404) return {missing:true};
+  if(!r.ok) throw new Error('gh'+r.status);
+  const j=await r.json();
+  return {sha:j.sha,text:new TextDecoder().decode(b64dec(String(j.content||'').replace(/\s/g,'')))};
+}
+async function ghPut(path,text,sha,msg){
+  const body={message:msg||('小记 · '+path),content:b64enc(new TextEncoder().encode(text))};
+  if(sha) body.sha=sha;
+  const r=await fetch(`${GHAPI}/repos/${D.s.ghRepo}/contents/${path}`,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghHeaders()),body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('gh'+r.status);
+  return (await r.json()).content.sha;
+}
+var cloudTimer=null, dataSha=null, pushing=false, lastPullAt=0, cloudDirty=false; /* var：save() 在脚本更早处就会调 cloudQueue，不能有 TDZ */
+function setSyncLine(t){ const el=$('#syncStat'); if(el) el.textContent=t; }
+function syncErrText(e){ return String(e).includes('gh401')?'⚠️ 钥匙无效或已过期，去重新生成一把':(String(e).includes('gh404')?'⚠️ 找不到仓库，检查名字拼写':'⚠️ 同步失败（可能没网），会自动再试'); }
+function cloudQueue(){ if(!ghCfg()) return; cloudDirty=true; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush,3500); }
+async function cloudPush(force){
+  if(!ghCfg()||pushing||(!cloudDirty&&!force)) return; pushing=true; clearTimeout(cloudTimer); cloudDirty=false;
+  try{
+    const txt=JSON.stringify(D);
+    try{ dataSha=await ghPut('data.json',txt,dataSha,'数据同步'); }
+    catch(e){
+      if(String(e).includes('gh409')||String(e).includes('gh422')){
+        const d=await ghGet('data.json'); dataSha=d.missing?null:d.sha;
+        dataSha=await ghPut('data.json',txt,dataSha,'数据同步');
+      } else throw e;
+    }
+    D.s.lastSync=tsNow(); save(true);
+    setSyncLine('☁ 已同步 · '+D.s.lastSync.slice(11,16));
+  }catch(e){ setSyncLine(syncErrText(e)); cloudDirty=true; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush,60000); }
+  finally{ pushing=false; }
+}
+function catByName(n){ const c=D.cats.find(c=>c.n===n); return c?c.id:null; }
+function importTasks(arr){
+  let n=0;
+  arr.forEach(it=>{
+    if(!it||!it.name) return;
+    const t={id:uid(),name:String(it.name).slice(0,60),cat:it.cat?catByName(it.cat):null,type:'once',date:TODAY,created:TODAY,fromMom:true};
+    if(it.type==='idle'){ t.type='idle'; delete t.date; }
+    else if(it.type==='span'&&it.start&&it.end){ t.type='span'; t.start=it.start; t.end=it.end; delete t.date; }
+    else if(it.date&&/^\d{4}-\d{2}-\d{2}$/.test(it.date)) t.date=it.date;
+    D.tasks.push(t); n++;
+  });
+  return n;
+}
+function importWords(arr){
+  let n=0;
+  arr.forEach(it=>{
+    if(!it||!it.t) return;
+    const tab=['mom','essay','open'].includes(it.tab)?it.tab:'mom';
+    const item={t:String(it.t).slice(0,120),d:'云端 · '+fmtMD(TODAY),seen:false,p:['morning','noon','afternoon','evening','late'].includes(it.p)?it.p:'all'};
+    if(it.t2) item.t2=String(it.t2).slice(0,120);
+    if(tab!=='open'){ item.dt=['work','rest','date'].includes(it.dt)?it.dt:'any'; if(item.dt==='date'&&it.date) item.date=String(it.date).slice(-5); }
+    D.words[tab].push(item); n++;
+  });
+  return n;
+}
+async function cloudInbox(){
+  let got=0;
+  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords]]){
+    try{
+      const f=await ghGet(path);
+      if(f.missing) continue;
+      let arr=null; try{ arr=JSON.parse(f.text); }catch(e){}
+      if(Array.isArray(arr)&&arr.length){
+        const n=fn(arr);
+        await ghPut(path,'[]\n',f.sha,'已签收 ♡');
+        got+=n;
+      }
+    }catch(e){ /* 信箱冲突或断网：下次再取，不弄丢 */ }
+  }
+  if(got){ save(); toast('妈咪从云端放了 '+got+' 样东西进来 ♡'); if(cur==='scr-tasks') renderTasks(); if(cur==='scr-words') renderWords(); }
+}
+async function cloudHerMeta(){
+  try{
+    const f=await ghGet('her/meta.json');
+    if(f.missing) return;
+    const m=JSON.parse(f.text);
+    D.herMeta={n:+m.n||0,last:(typeof m.last==='string'?m.last:'')};
+    save(true);
+    if(cur==='scr-notes') renderNotes();
+  }catch(e){}
+}
+async function cloudPull(){
+  if(!ghCfg()) return;
+  lastPullAt=Date.now();
+  try{
+    const d=await ghGet('data.json');
+    if(!d.missing){
+      dataSha=d.sha;
+      let remote=null; try{ remote=JSON.parse(d.text); }catch(e){}
+      if(remote&&remote.v){
+        const fresh=(D.log.length+D.notes.entries.length+D.moods.length+D.tasks.length)===0;
+        if(fresh||(remote._ts||0)>(D._ts||0)){
+          remote.s=remote.s||{};
+          remote.s.ghRepo=D.s.ghRepo; remote.s.ghToken=D.s.ghToken;
+          localStorage.setItem(KEY,JSON.stringify(remote));
+          location.reload(); return;
+        }
+      }
+    } else { await cloudPush(true); }
+    await cloudInbox();
+    await cloudHerMeta();
+    D.s.lastSync=tsNow(); save(true);
+    setSyncLine('☁ 已同步 · '+D.s.lastSync.slice(11,16));
+  }catch(e){ setSyncLine(syncErrText(e)); }
+}
 
 /* ================= boot ================= */
 renderHomeTop(); updatePendBadge(); ensureFlows();
+
+/* 跨天自愈：iOS 桌面 App 常常整夜不重载，日期一变就自动刷新，防止记到昨天 */
+if(!qp.get('date')){
+  const dayCheck=()=>{ if(todayISO()!==TODAY) location.reload(); };
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') dayCheck(); });
+  window.addEventListener('pageshow',dayCheck);
+  setInterval(dayCheck,60000);
+}
+
+/* 备份轻提醒：数据只在本机，太久没导出就催一句（一周最多催一次） */
+(function backupNudge(){
+  const bulk=D.log.length+D.notes.entries.length+D.moods.length;
+  if(bulk<20) return;
+  const overdue=!D.s.lastBackup||diffDays(D.s.lastBackup,TODAY)>30;
+  const quiet=D.s.lastNudge&&diffDays(D.s.lastNudge,TODAY)<7;
+  if(overdue&&!quiet){
+    D.s.lastNudge=TODAY; save();
+    setTimeout(()=>toast(D.s.lastBackup?`已经 ${diffDays(D.s.lastBackup,TODAY)} 天没备份了 · 设置→数据备份 ☾`:'记得导出第一份备份 · 设置→数据备份 ☾'),1500);
+  }
+})();
+
+/* 离线支持：Service Worker（断网也能打开） */
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+/* 云端：开机拉一次；回到 App 超过5分钟再拉；切后台前把没推完的推掉 */
+if(ghCfg()) setTimeout(cloudPull,400);
+document.addEventListener('visibilitychange',()=>{
+  if(!ghCfg()) return;
+  if(document.visibilityState==='visible'&&Date.now()-lastPullAt>300000) cloudPull();
+  if(document.visibilityState==='hidden'&&cloudDirty) cloudPush();
+});
 </script>
 </body>
 </html>
