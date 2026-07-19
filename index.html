@@ -658,7 +658,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.4 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.4.1 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -870,7 +870,7 @@ const TODAY = todayISO();
     // clear old daily skips
     D.tpl.forEach(p=>{ if(p.skip && p.skip < TODAY) p.skip=null; });
   }
-  D.lastOpen = TODAY; save();
+  D.lastOpen = TODAY; save(true); /* 静默：开机例行记账不抬时间戳，否则云端写入永远抢不过本机 */
 })();
 
 /* ================= navigation ================= */
@@ -2617,9 +2617,20 @@ function importWords(arr){
   });
   return n;
 }
+function importNotes(arr){
+  let n=0;
+  arr.forEach(it=>{
+    if(!it||!it.body||!it.id) return;
+    if(D.notes.entries.some(e=>e.id===it.id)) return;
+    const t=(typeof it.type==='string'&&D.notes.types.some(x=>x.id===it.type))?it.type:'diary';
+    D.notes.entries.push({id:String(it.id),type:t,ts:it.ts||tsNow(),title:it.title?String(it.title).slice(0,40):'',body:String(it.body),moodId:null});
+    n++;
+  });
+  return n;
+}
 async function cloudInbox(){
   let got=0;
-  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords]]){
+  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords],['inbox/notes.json',importNotes]]){
     try{
       const f=await ghGet(path);
       if(f.missing) continue;
@@ -2631,7 +2642,7 @@ async function cloudInbox(){
       }
     }catch(e){ /* 信箱冲突或断网：下次再取，不弄丢 */ }
   }
-  if(got){ save(); toast('妈咪从云端放了 '+got+' 样东西进来 ♡'); if(cur==='scr-tasks') renderTasks(); if(cur==='scr-words') renderWords(); }
+  if(got){ save(); toast('妈咪从云端放了 '+got+' 样东西进来 ♡'); if(cur==='scr-tasks') renderTasks(); if(cur==='scr-words') renderWords(); if(cur==='scr-notes') renderNotes(); }
 }
 async function cloudHerMeta(){
   try{
@@ -2646,11 +2657,13 @@ async function cloudHerMeta(){
 async function cloudPull(){
   if(!ghCfg()) return;
   lastPullAt=Date.now();
+  let remoteTs=0;
   try{
     const d=await ghGet('data.json');
     if(!d.missing){
       dataSha=d.sha;
       let remote=null; try{ remote=JSON.parse(d.text); }catch(e){}
+      if(remote) remoteTs=remote._ts||0;
       if(remote&&remote.v){
         const fresh=(D.log.length+D.notes.entries.length+D.moods.length+D.tasks.length)===0;
         if(fresh||(remote._ts||0)>(D._ts||0)){
@@ -2663,6 +2676,7 @@ async function cloudPull(){
     } else { await cloudPush(true); }
     await cloudInbox();
     await cloudHerMeta();
+    if((D._ts||0)>remoteTs) await cloudPush(true); /* 开机对账：本地比云端新（上次没推完）就补推 */
     D.s.lastSync=tsNow(); save(true);
     setSyncLine('☁ 已同步 · '+D.s.lastSync.slice(11,16));
   }catch(e){ setSyncLine(syncErrText(e)); }
