@@ -700,7 +700,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.0 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.1 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -921,6 +921,7 @@ if(!D.g) D.g={
   vase:{vid:'v1', ws:null, note:'', snail:false, hide:false},
   fridge:null,               /* 冰箱要自己买：f1/f2 */
   bottles:{},                /* 囤的瓶装水 */
+  fert:0,                    /* 肥料库存（包） */
   book:{}, hist:[], care:{}, gifts:[],
   visits:{n:0,last:null},
   own:['v1'],
@@ -933,6 +934,7 @@ if(D.g.v===1){ /* 开发期状态升级 */
   Object.keys(oldSlots).forEach(pos=>{ const o=oldSlots[pos]; D.g.inv.push({id:uid(),sp:o.sp,sc:o.sc||0,ph:1,F:0,B:120,Dc:0,lt:Date.now(),loc:'vase',pos}); });
   D.g.vase={vid:D.g.vase.vid||'v1',ws:D.g.vase.ws||null,note:'',snail:!!D.g.vase.snail,hide:!!D.g.vase.hide};
 }
+if(D.g.fert===undefined) D.g.fert=0;
 function save(silent){
   if(!silent) D._ts=Date.now();
   try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); }
@@ -1230,7 +1232,7 @@ function completeVirtual(el,v){
     if(v.kind==='tpl') entry.tid=v.id;
     D.log.push(entry);
     if(v.kind==='task') D.tasks=D.tasks.filter(t=>t.id!==v.id);
-    gardenCare(1);
+    gardenCare(1); gardenBonus();
     save();
     setTimeout(()=>{ renderTasks(); },580);
     if(!v.reward) gacha();
@@ -1261,7 +1263,7 @@ function doFlowStep(el,f,i){
     const lid=uid(); s.logId=lid;
     D.log.push({id:lid,name:flogName(f,s),cat:f.cat,ts:s.ts,date:TODAY,cd:f.started,src:'flow'});
     const rest=f.steps.some(x=>!x.done&&!x.skip);
-    gardenCare(1);
+    gardenCare(1); gardenBonus();
     save();
     if(!rest){
       el.classList.add('leave');
@@ -1578,7 +1580,7 @@ $('#moodSave').addEventListener('click',()=>{
   const v=+slider.value;
   D.moods.push({id:uid(),ts:tsNow(),date:TODAY,v,note:moodNote.value.trim(),src:'mood'});
   moodNote.value='';
-  gardenCare(4);
+  gardenCare(4); gardenBonus();
   save(); drawMood(); renderMoodList(); toast('已记下这一刻');
 });
 let moodRange='m', pts=[];
@@ -1941,7 +1943,7 @@ $('#nSave2').addEventListener('click',async()=>{
     }
     syncMood(e);
     D.notes.entries.push(e);
-    gardenCare(2); if(mood!==null) gardenCare(4);
+    gardenCare(2); if(mood!==null) gardenCare(4); gardenBonus();
     toast(importTs?'已导入并保存':(locked?'已加密保存 🔒':'已保存'));
     importTs=null;
   }
@@ -2718,7 +2720,7 @@ function importNotes(arr){
 }
 async function cloudInbox(){
   let got=0;
-  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords],['inbox/notes.json',importNotes],['inbox/seeds.json',importSeeds]]){
+  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords],['inbox/notes.json',importNotes],['inbox/seeds.json',importSeeds],['inbox/fert.json',importFert]]){
     try{
       const f=await ghGet(path);
       if(f.missing) continue;
@@ -2813,6 +2815,7 @@ function plotState(p){
     if(bs===null && cum>=need) bs=d;
     if(d===TODAY) break;
   }
+  if(!doom){ cum+=(p.ft||0); if(bs===null&&cum>=need) bs=TODAY; }
   if(doom) return {st:4,prog:Math.min(1,cum/need),bs:null};
   if(bs!==null){
     const wd=addDays(bs,sp.gb);
@@ -2862,6 +2865,16 @@ function gardenCare(bit){
   gTick(true);
   if(cur==='scr-garden') renderGardenTab();
   renderVase();
+}
+function gardenBonus(){
+  const g=D.g; if(!g) return;
+  let any=false;
+  g.plots.forEach(p=>{
+    if(!p) return;
+    const s=plotState(p);
+    if(s.st===0||s.st===1){ p.ft=(p.ft||0)+.5; any=true; }
+  });
+  if(any){ gTick(true); if(cur==='scr-garden') renderGardenTab(); renderVase(); }
 }
 /* 花枝两段计时：ph0 新鲜度 F(0→72h)，货架1×冰箱1/倍率；ph1 展示预算 B，瓶1×冰箱1/倍率（她的公式） */
 function stemTick(s){
@@ -3198,7 +3211,27 @@ function renderStore(){
   if(ks.length){ ks.forEach(k=>{ h+='<div class="grow2"><span class="sp2">'+SPECIES[k].n+'种子<span class="sub2">自己收的、买的、妈咪寄的，都在这袋里</span></span><span style="font-size:13px;color:var(--sub)">'+g.seeds[k]+' 颗</span></div>'; }); }
   else h+='<p class="empty" style="padding:8px">袋子空着 · 谢了的花会还你种子</p>';
   h+='</div>';
+  h+='<div class="gcard"><h4>肥料</h4>';
+  if((g.fert||0)>0){
+    h+='<div class="grow2"><span class="sp2">营养土<span class="sub2">每包 +0.5 生长值</span></span><span style="font-size:13px;color:var(--sub)">'+g.fert+' 包</span> <button class="pri" data-sa="usefert">施肥</button></div>';
+  } else h+='<p class="empty" style="padding:8px">没有肥料 · 商店有售，妈咪也会寄</p>';
+  h+='</div>';
   document.querySelector('#gBody').innerHTML=h; wireBack(); wireStemBtns(renderStore);
+  var fb=document.querySelector('[data-sa="usefert"]');
+  if(fb) fb.addEventListener('click',useFert);
+}
+function useFert(){
+  const g=D.g;
+  if(!g.fert){ toast('没有肥料'); return; }
+  const cands=g.plots.map((p,i)=>{ if(!p) return null; const s=plotState(p); return (s.st===0||s.st===1)?{i,p,s}:null; }).filter(Boolean);
+  if(!cands.length){ toast('没有正在生长的花可以施肥'); return; }
+  openMini('<h5>给哪盆花施肥？</h5><div class="catwrap">'+cands.map(c=>'<button class="chip" data-fi="'+c.i+'">'+SPECIES[c.p.sp].n+'（第'+(c.i+1)+'盆）</button>').join('')+'</div>');
+  $$('.chip[data-fi]').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.fi, p=g.plots[i];
+    p.ft=(p.ft||0)+.5; g.fert--;
+    ghist('给第'+(i+1)+'盆'+SPECIES[p.sp].n+'施了一包肥');
+    save(); closeMini(); gTick(true); renderStore(); toast('施肥成功 · +0.5 生长值');
+  }));
 }
 function renderShop(){
   const g=D.g;
@@ -3224,6 +3257,9 @@ function renderShop(){
     const w=WATERS[k];
     h+='<div class="grow2"><span class="sp2">'+w.n+' · '+w.p+' 花币<span class="sub2">'+w.f+' · +'+w.h+'小时'+(g.fridge?' · 已囤 '+(g.bottles[k]||0):'')+'</span></span><button '+((!g.fridge||g.coins<w.p)?'disabled style="opacity:.4"':'')+' data-ba="water" data-bk="'+k+'">买一瓶</button></div>';
   });
+  h+='</div>';
+  h+='<div class="gcard"><h4>肥料<small>催一催进度</small></h4>';
+  h+='<div class="grow2"><span class="sp2">营养土 · 2 花币<span class="sub2">每包 +0.5 生长值 · 仓库里有 '+(g.fert||0)+' 包</span></span><button '+(g.coins<2?'disabled style="opacity:.4"':'class="pri"')+' data-ba="fert">买一包</button></div>';
   h+='</div>';
   h+='<div class="gcard"><h4>花瓶与花盆</h4>';
   Object.keys(VASES).forEach(k=>{
@@ -3272,6 +3308,10 @@ function renderShop(){
       g.coins-=40; g.plots.push(null);
       ghist('花园扩建：第四个花盆');
       save(); renderShop(); toast('第四个花盆安好了');
+    } else if(a==='fert'){
+      if(g.coins<2) return;
+      g.coins-=2; g.fert=(g.fert||0)+1;
+      save(); renderShop(); toast('买了一包营养土 · 去仓库施肥');
     }
   }));
 }
@@ -3336,6 +3376,17 @@ function importSeeds(arr){
     const c=Math.max(1,Math.min(9,+it.n||1));
     D.g.seeds[it.sp]=(D.g.seeds[it.sp]||0)+c;
     ghist('妈咪寄来了 '+c+' 颗'+SPECIES[it.sp].n+'种子'+(it.note?('：'+String(it.note).slice(0,20)):'')+' ♡');
+    n+=c;
+  });
+  return n;
+}
+function importFert(arr){
+  let n=0;
+  arr.forEach(it=>{
+    if(!it) return;
+    const c=Math.max(1,Math.min(99,+it.n||1));
+    D.g.fert=(D.g.fert||0)+c;
+    ghist('妈咪寄来了 '+c+' 包肥料'+(it.note?('：'+String(it.note).slice(0,20)):'')+' ♡');
     n+=c;
   });
   return n;
