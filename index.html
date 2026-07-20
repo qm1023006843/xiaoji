@@ -345,6 +345,10 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
 /* 已完成列表：只露最新4条，余下在框内滚动；花瓶住线下自己的房间 */
 #doneList{max-height:160px; overflow-y:auto; overscroll-behavior:contain;}
 #doneList.capped{border-bottom:1px solid var(--line);}
+.flow-sub .done-item{padding-left:28px; font-size:12px; opacity:.7;}
+.flow-sub .done-item .dot{width:5px; height:5px;}
+.fexp{display:inline-block; transition:transform .2s; margin-left:2px; font-size:10px; color:var(--faint);}
+.flow-gp.open .fexp{transform:rotate(90deg);}
 /* encyclopedia */
 .bookgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px;}
 .bookcell{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 6px 10px; text-align:center; cursor:pointer;}
@@ -705,7 +709,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.3 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.4 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -1192,6 +1196,24 @@ function taskEl(v){
   el.querySelector('.tmore').addEventListener('click',()=>taskActions(v));
   return el;
 }
+function groupFlowLogs(list,hideActive){
+  const act=hideActive?new Set(D.flows.inst.map(f=>f.id)):new Set();
+  const grp={}, singles=[];
+  list.forEach(l=>{
+    if(l.fid){
+      if(act.has(l.fid)) return;
+      if(!grp[l.fid]) grp[l.fid]={fn:l.fn||l.name,cat:l.cat,items:[],ts:l.ts};
+      grp[l.fid].items.push(l);
+      if(l.ts>grp[l.fid].ts) grp[l.fid].ts=l.ts;
+    } else singles.push(l);
+  });
+  const vis=[];
+  singles.forEach(l=>vis.push({t:'s',l,ts:l.ts}));
+  Object.entries(grp).forEach(([fid,g])=>vis.push({t:'f',fid,g,ts:g.ts}));
+  vis.sort((a,b)=>a.ts<b.ts?-1:1);
+  return {vis,hidN:list.filter(l=>l.fid&&act.has(l.fid)).length};
+}
+function flowStepName(name){ return name.includes('｜')?name.split('｜').slice(1).join('｜'):name; }
 function renderTasks(){
   // filter chips
   const chips=[['all','全部'],...D.cats.map(c=>[c.id,c.n])];
@@ -1220,11 +1242,25 @@ function renderTasks(){
   if(up) dline+=up.days===0?` · 今天是${up.n} ✦`:` · 距${up.n} ${up.days} 天`;
   $('#taskDate').textContent=dline;
   const dl=$('#doneList');
-  dl.classList.toggle('capped',dn.length>4);
-  dl.innerHTML = dn.length? dn.slice().reverse().map(l=>
-    `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span><span class="tm">${l.ts.slice(11,16)}</span></div>`
-  ).join('') : '<p class="empty">还没有，不急。</p>';
-  $$('#doneList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderTasks)));
+  const {vis:dVis,hidN}=groupFlowLogs(dnF,true);
+  dl.classList.toggle('capped',dVis.length>4);
+  if(!dVis.length){
+    dl.innerHTML=hidN?'<p class="empty">流程进行中 · 完成后显示在这里</p>':'<p class="empty">还没有，不急。</p>';
+  } else {
+    dl.innerHTML=dVis.slice().reverse().map(v=>{
+      if(v.t==='s') return `<div class="done-item" data-id="${v.l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(v.l.cat)}"></span><span class="nm2">${esc(v.l.name)}</span><span class="tm">${v.l.ts.slice(11,16)}</span></div>`;
+      const g=v.g;
+      return `<div class="done-item flow-gp" data-fid="${v.fid}" style="cursor:pointer"><span class="dot" style="background:${dotColor(g.cat)}"></span><span class="nm2">${esc(g.fn)}</span><span class="tm">${g.items.length}步 · ${g.ts.slice(11,16)} <span class="fexp">▸</span></span></div>`+
+        `<div class="flow-sub" data-fid="${v.fid}" style="display:none">`+g.items.map(l=>
+          `<div class="done-item"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(flowStepName(l.name))}</span><span class="tm">${l.ts.slice(11,16)}</span></div>`
+        ).join('')+`</div>`;
+    }).join('');
+    $$('#doneList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderTasks)));
+    $$('#doneList .flow-gp').forEach(el=>el.addEventListener('click',()=>{
+      const sub=dl.querySelector(`.flow-sub[data-fid="${el.dataset.fid}"]`);
+      if(sub){ sub.style.display=sub.style.display==='none'?'':'none'; el.classList.toggle('open'); }
+    }));
+  }
   renderVase();
 }
 RENDER['scr-tasks']=function(){ ensureFlows(); pickQuote(); renderTasks(); };
@@ -1267,7 +1303,7 @@ function doFlowStep(el,f,i){
     const s=f.steps[i];
     s.done=true; s.ts=tsNow();
     const lid=uid(); s.logId=lid;
-    D.log.push({id:lid,name:flogName(f,s),cat:f.cat,ts:s.ts,date:TODAY,cd:f.started,src:'flow'});
+    D.log.push({id:lid,name:flogName(f,s),cat:f.cat,ts:s.ts,date:TODAY,cd:f.started,src:'flow',fid:f.id,fn:f.n+(f.note?'（'+f.note+'）':'')});
     const rest=f.steps.some(x=>!x.done&&!x.skip);
     gardenCare(1); gardenBonus();
     save();
@@ -2282,10 +2318,24 @@ function renderRecords(){
   } else {
     $('#recListLabel').textContent='完成清单 · 点一条可修改类型';
     const fl=recF==='all'?logs:logs.filter(l=>l.cat===recF);
-    $('#recList').innerHTML=fl.length? fl.slice().reverse().slice(0,60).map(l=>
-      `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span>${tagHTML(l.cat)}<span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`).join('')
-      : '<p class="empty">这里还空着</p>';
-    $$('#recList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderRecords)));
+    const {vis:rVis}=groupFlowLogs(fl,recR==='d'&&recD===TODAY);
+    const rl=$('#recList');
+    if(!rVis.length){ rl.innerHTML='<p class="empty">这里还空着</p>'; }
+    else {
+      rl.innerHTML=rVis.slice().reverse().slice(0,60).map(v=>{
+        if(v.t==='s'){ const l=v.l; return `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span>${tagHTML(l.cat)}<span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`; }
+        const g=v.g;
+        return `<div class="done-item flow-gp" data-fid="${v.fid}" style="cursor:pointer"><span class="dot" style="background:${dotColor(g.cat)}"></span><span class="nm2">${esc(g.fn)}</span>${tagHTML(g.cat)}<span class="tm">${g.items.length}步 · ${fmtDT(g.ts)} <span class="fexp">▸</span></span></div>`+
+          `<div class="flow-sub" data-fid="${v.fid}" style="display:none">`+g.items.map(l=>
+            `<div class="done-item"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(flowStepName(l.name))}</span><span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`
+          ).join('')+`</div>`;
+      }).join('');
+      $$('#recList .done-item[data-id]').forEach(el=>el.addEventListener('click',()=>changeCat(el.dataset.id,renderRecords)));
+      $$('#recList .flow-gp').forEach(el=>el.addEventListener('click',()=>{
+        const sub=rl.querySelector(`.flow-sub[data-fid="${el.dataset.fid}"]`);
+        if(sub){ sub.style.display=sub.style.display==='none'?'':'none'; el.classList.toggle('open'); }
+      }));
+    }
   }
 }
 $$('#recRange .pill').forEach(p=>p.addEventListener('click',()=>{
