@@ -709,7 +709,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.5 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.6 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -3011,7 +3011,7 @@ function gardenBonus(){
   g.plots.forEach(p=>{
     if(!p) return;
     const s=plotState(p);
-    if(s.st===0||s.st===1||s.st===2){ p.ft=(p.ft||0)+.5; any=true; }
+    if(s.st===0||s.st===1||s.st===2){ p.ft=(p.ft||0)+.2; any=true; }
   });
   if(any){ gTick(true); if(cur==='scr-garden') renderGardenTab(); renderVase(); }
 }
