@@ -709,7 +709,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.4 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.5 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -1105,24 +1105,54 @@ function parseFlow(body){
   const variants=[]; let cur=null;
   for(const ln of lines){
     const m=ln.match(/^[\[【](.+?)[\]】]$/);
-    if(m){ cur={n:m[1].trim(),steps:[]}; variants.push(cur); continue; }
-    if(!cur){ cur={n:'',steps:[]}; variants.push(cur); }
+    if(m){ cur={n:m[1].trim(),steps:[],forks:null,_fk:null}; variants.push(cur); continue; }
+    const fm=ln.match(/^分叉[A-Za-z\d]*[\[【](.+?)[\]】]$/);
+    if(fm){
+      if(!cur){ cur={n:'',steps:[],forks:null,_fk:null}; variants.push(cur); }
+      if(!cur.forks) cur.forks=[];
+      cur._fk={n:fm[1].trim(),steps:[]}; cur.forks.push(cur._fk); continue;
+    }
+    if(!cur){ cur={n:'',steps:[],forks:null,_fk:null}; variants.push(cur); }
     const flags=(ln.match(/[?？!！]+$/)||[''])[0];
     const opt=/[?？]/.test(flags), ask=/[!！]/.test(flags);
     const nm=ln.replace(/[?？!！]+$/,'').trim();
-    if(nm) cur.steps.push({n:nm,opt,ask});
+    if(nm){
+      if(cur._fk) cur._fk.steps.push({n:nm,opt,ask});
+      else cur.steps.push({n:nm,opt,ask});
+    }
   }
-  return variants.filter(v=>v.steps.length);
+  variants.forEach(v=>{
+    delete v._fk;
+    if(v.forks) v.forks=v.forks.filter(f=>f.steps.length);
+    if(v.forks&&!v.forks.length) v.forks=null;
+  });
+  return variants.filter(v=>v.steps.length||(v.forks&&v.forks.length));
 }
 function spawnFlow(tm,varIdx,note){
   const vs=parseFlow(tm.body);
   const vv=vs[Math.min(varIdx||0,vs.length-1)];
   if(!vv) return null;
   const f={id:uid(),tmpl:tm.id,n:tm.n,cat:tm.cat,note:(note||'').trim(),variant:vs.length>1?vv.n:'',steps:vv.steps.map(s=>({n:s.n,opt:s.opt,ask:s.ask,remark:'',done:false,skip:false,ts:null,logId:null})),started:TODAY};
+  if(vv.forks&&vv.forks.length) f.forks=vv.forks;
   D.flows.inst.push(f);
   return f;
 }
 function flogName(f,s){ return `${f.n}${f.note?'（'+f.note+'）':''}｜${s.n}${s.remark?'：'+s.remark:''}`; }
+function showForkChoice(f){
+  let h=`<h5>${esc(f.n)}${f.note?' · '+esc(f.note):''}<br><small style="font-weight:400;color:var(--sub)">前置步骤已完成，接下来走哪条路？</small></h5>`;
+  f.forks.forEach((fk,i)=>{
+    h+=`<button class="act" data-fi="${i}" style="text-align:left"><b>${esc(fk.n)}</b><small style="display:block;color:var(--sub);font-weight:400;margin-top:2px">${fk.steps.length} 步 · ${fk.steps.slice(0,3).map(s=>s.n).join('→')}${fk.steps.length>3?'…':''}</small></button>`;
+  });
+  openMini(h);
+  mini.querySelectorAll('[data-fi]').forEach(btn=>btn.addEventListener('click',()=>{
+    const fk=f.forks[+btn.dataset.fi];
+    fk.steps.forEach(s=>f.steps.push({n:s.n,opt:s.opt,ask:s.ask,remark:'',done:false,skip:false,ts:null,logId:null}));
+    f.branch=fk.n;
+    delete f.forks;
+    save(); closeMini(); renderTasks();
+    toast(`走「${fk.n}」路线 · 还有 ${fk.steps.length} 步`);
+  }));
+}
 function ensureFlows(){
   let changed=false;
   D.flows.tmpl.forEach(t=>{
@@ -1161,17 +1191,27 @@ function taskEl(v){
     const idx=f.steps.findIndex(s=>!s.done&&!s.skip);
     const doneN=f.steps.filter(s=>s.done||s.skip).length, total=f.steps.length;
     const cs=idx>=0?f.steps[idx]:null;
+    const atFork=!cs&&f.forks&&f.forks.length;
     el.innerHTML=`
       ${useBtnF?'':ckStr}
       <div class="tmain">
-        <div class="tname">${esc(f.n)}${f.note?`<span style="color:var(--sub)"> · ${esc(f.note)}</span>`:''}${f.variant?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.variant)}</span>`:''}</div>
-        <div class="tmeta">${tagHTML(f.cat)}<span>流程 · 第 ${Math.min(doneN+1,total)} / ${total} 步</span></div>
-        ${cs?`<div style="font-size:13px;color:var(--sage-deep);margin-top:6px">▸ ${esc(cs.n)}${cs.opt?'<span style="color:var(--faint);font-size:11px">（可跳过）</span>':''}</div>`:''}
-        <div class="tprog"><div class="bar2"><i style="width:${Math.round(doneN/total*100)}%"></i></div></div>
+        <div class="tname">${esc(f.n)}${f.note?`<span style="color:var(--sub)"> · ${esc(f.note)}</span>`:''}${f.variant?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.variant)}</span>`:''}${f.branch?`<span style="color:var(--faint);font-size:12px"> · ${esc(f.branch)}</span>`:''}</div>
+        <div class="tmeta">${tagHTML(f.cat)}<span>流程 · ${atFork?'前置完成 · 选择路线':`第 ${Math.min(doneN+1,total)} / ${total} 步`}</span></div>
+        ${atFork?`<div style="font-size:13px;color:var(--sage-deep);margin-top:6px">▸ 选择路线（${f.forks.length} 条）</div>`:
+         cs?`<div class="fstep-cur" style="font-size:13px;color:var(--sage-deep);margin-top:6px;cursor:pointer">▸ ${esc(cs.n)}${cs.opt?'<span style="color:var(--faint);font-size:11px">（可跳过）</span>':''}${cs.remark?`<br><span style="font-size:12px;color:var(--sub);font-weight:400">📎 ${esc(cs.remark)}</span>`:''}</div>`:''}
+        <div class="tprog"><div class="bar2"><i style="width:${atFork?100:Math.round(doneN/total*100)}%"></i></div></div>
       </div>
       ${useBtnF?btnStr:''}
       <button class="tmore">⋯</button>`;
-    el.querySelector(useBtnF?'.donebtn':'.ck').addEventListener('click',()=>completeFlowStep(el,f));
+    const mainBtn=el.querySelector(useBtnF?'.donebtn':'.ck');
+    if(atFork){
+      if(useBtnF) mainBtn.textContent='选择';
+      mainBtn.addEventListener('click',()=>showForkChoice(f));
+    } else {
+      mainBtn.addEventListener('click',()=>completeFlowStep(el,f));
+    }
+    const curLine=el.querySelector('.fstep-cur');
+    if(curLine) curLine.addEventListener('click',(e)=>{ e.stopPropagation(); editStepRemark(f,idx); });
     el.querySelector('.tmore').addEventListener('click',()=>flowActions(f));
     return el;
   }
@@ -1297,6 +1337,25 @@ function completeFlowStep(el,f){
   }
   doFlowStep(el,f,i);
 }
+function editStepRemark(f,i){
+  const s=f.steps[i];
+  openMini(`<h5>${esc(s.n)}</h5>
+    <input id="stepRk" class="edin" style="background:var(--bg);margin-bottom:10px" placeholder="备注一下（可留空）" maxlength="40" value="${esc(s.remark||'')}">
+    <button class="act" data-a="sv" style="background:var(--sage);color:#FBFBF6;text-align:center">${s.remark?'更新备注':'添加备注'}</button>
+    ${s.remark?'<button class="act" data-a="rm">清除备注</button>':''}`);
+  mini.querySelector('[data-a="sv"]').addEventListener('click',()=>{
+    s.remark=$('#stepRk').value.trim();
+    if(s.done&&s.logId){ const l=D.log.find(x=>x.id===s.logId); if(l) l.name=flogName(f,s); }
+    save(); closeMini(); renderTasks();
+    toast(s.remark?'备注已添加':'');
+  });
+  const rm=mini.querySelector('[data-a="rm"]');
+  if(rm) rm.addEventListener('click',()=>{
+    s.remark='';
+    if(s.done&&s.logId){ const l=D.log.find(x=>x.id===s.logId); if(l) l.name=flogName(f,s); }
+    save(); closeMini(); renderTasks(); toast('备注已清除');
+  });
+}
 function doFlowStep(el,f,i){
   el.classList.add('done');
   setTimeout(()=>{
@@ -1307,7 +1366,9 @@ function doFlowStep(el,f,i){
     const rest=f.steps.some(x=>!x.done&&!x.skip);
     gardenCare(1); gardenBonus();
     save();
-    if(!rest){
+    if(!rest&&f.forks&&f.forks.length){
+      setTimeout(()=>{ renderTasks(); },400);
+    } else if(!rest){
       el.classList.add('leave');
       setTimeout(()=>{
         D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id);
@@ -1323,18 +1384,25 @@ function flowActions(f){
   const idx=f.steps.findIndex(s=>!s.done&&!s.skip);
   const cs=idx>=0?f.steps[idx]:null;
   const lastDone=f.steps.map((s,i)=>s.done?i:-1).filter(i=>i>=0).pop();
-  let h=`<h5>${esc(f.n)}${f.note?'（'+esc(f.note)+'）':''}${f.variant?' · '+esc(f.variant):''} · 步骤明细<br><small style="font-weight:400">点已完成的步骤可补写备注</small></h5>
+  const atFork=!cs&&f.forks&&f.forks.length;
+  let h=`<h5>${esc(f.n)}${f.note?'（'+esc(f.note)+'）':''}${f.variant?' · '+esc(f.variant):''}${f.branch?' · '+esc(f.branch):''} · 步骤明细<br><small style="font-weight:400">点已完成的步骤可补写备注</small></h5>
     <div style="max-height:36dvh;overflow-y:auto;margin-bottom:10px">`+
     f.steps.map((s,i)=>`<div data-fsi="${i}" style="display:flex;gap:9px;font-size:13px;padding:7px 4px;border-bottom:1px solid var(--line);${i===idx?'color:var(--sage-deep);font-weight:600':''}${s.done?';cursor:pointer':''}">
       <span style="flex:none;width:16px">${s.done?'✓':s.skip?'⤼':(i===idx?'▸':'○')}</span>
       <span style="flex:1">${esc(s.n)}${s.opt?'<small style="color:var(--faint)">（可跳过）</small>':''}${s.remark?`<br><small style="color:var(--sub)">备注：${esc(s.remark)}</small>`:''}</span>
       <span style="flex:none;color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums">${s.done&&s.ts?fmtDT(s.ts):(s.skip?'已跳过':'')}</span>
-    </div>`).join('')+`</div>`;
+    </div>`).join('')+
+    (atFork?`<div style="padding:8px 4px;font-size:13px;color:var(--sage-deep);font-weight:600">▸ 接下来请选择路线</div>`+
+      f.forks.map((fk,i)=>`<div style="display:flex;gap:9px;font-size:13px;padding:5px 4px;border-bottom:1px solid var(--line)"><span style="flex:none;width:16px">⤳</span><span style="flex:1">${esc(fk.n)}<small style="color:var(--faint)"> · ${fk.steps.length}步</small></span></div>`).join(''):'')
+    +`</div>`;
   h+=`<button class="act" data-a="note">编辑流程备注${f.note?'（'+esc(f.note)+'）':''}</button>`;
+  if(atFork) h+=`<button class="act" data-a="fork" style="background:var(--sage);color:#FBFBF6;text-align:center">选择路线</button>`;
   if(cs&&cs.opt) h+=`<button class="act" data-a="skip">跳过当前步 · ${esc(cs.n)}</button>`;
   if(lastDone!==undefined) h+=`<button class="act" data-a="undo">撤销上一步 · ${esc(f.steps[lastDone].n)}（红冲）</button>`;
   h+=`<button class="act danger" data-a="drop">放弃流程（已完成的步骤保留记录）</button>`;
   openMini(h);
+  const fkBtn=mini.querySelector('[data-a="fork"]');
+  if(fkBtn) fkBtn.addEventListener('click',()=>{ closeMini(); showForkChoice(f); });
   mini.querySelectorAll('[data-fsi]').forEach(row=>row.addEventListener('click',()=>{
     const s=f.steps[+row.dataset.fsi];
     if(!s.done) return;
@@ -1355,8 +1423,11 @@ function flowActions(f){
   if(sk) sk.addEventListener('click',()=>{
     cs.skip=true;
     const rest=f.steps.some(s=>!s.done&&!s.skip);
-    if(!rest){ D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id); toast(`流程「${f.n}」全部完成 ✦`); }
-    else toast('已跳过这一步');
+    if(!rest&&f.forks&&f.forks.length){
+      toast('前置步骤已完成，请选择路线');
+    } else if(!rest){
+      D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id); toast(`流程「${f.n}」全部完成 ✦`);
+    } else toast('已跳过这一步');
     save(); closeMini(); renderTasks();
   });
   const ud=mini.querySelector('[data-a="undo"]');
@@ -1448,11 +1519,19 @@ function renderFlowChoices(){
   box.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ sheetTmpl=c.dataset.ft; sheetVar=0; renderFlowChoices(); }));
   const tm=D.flows.tmpl.find(t=>t.id===sheetTmpl);
   const vs=tm?parseFlow(tm.body):[];
-  if(vs.length>1){
+  const hasForks=vs.some(v=>v.forks&&v.forks.length);
+  if(vs.length>1&&!hasForks){
     $('#tFlowVars').style.display='';
     $('#tFlowVarChips').innerHTML=vs.map((v,i)=>`<button class="chip${i===sheetVar?' on':''}" data-fv="${i}">${esc(v.n||('变体'+(i+1)))}</button>`).join('');
     $('#tFlowVarChips').querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{ sheetVar=+c.dataset.fv; renderFlowChoices(); }));
-  } else $('#tFlowVars').style.display='none';
+  } else {
+    $('#tFlowVars').style.display='none';
+    if(hasForks){
+      const fk=vs[0].forks;
+      $('#tFlowVars').style.display='';
+      $('#tFlowVarChips').innerHTML=`<span style="font-size:12px;color:var(--sub)">${vs[0].steps.length}步前置 → ${fk.length}条路线（${fk.map(f=>f.n).join('／')}），启动后在分叉处选择</span>`;
+    }
+  }
 }
 function openSheet(){
   sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1; sheetTmpl=null; sheetVar=0;
@@ -2433,7 +2512,9 @@ function renderSettings(){
   $('#flowList').innerHTML=D.flows.tmpl.length? D.flows.tmpl.map((t,i)=>{
     const vs=parseFlow(t.body);
     const stepsN=vs.reduce((a,v)=>a+v.steps.length,0);
-    return `<div class="tpl-row"><span class="sp">${esc(t.n)} ${tagHTML(t.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${vs.length>1?vs.length+'变体·':''}${stepsN}步${t.md?' · 每月'+t.md+'日':''}</span></span>
+    const hasForks=vs.some(v=>v.forks&&v.forks.length);
+    const forkN=hasForks?vs.reduce((a,v)=>a+(v.forks?v.forks.length:0),0):0;
+    return `<div class="tpl-row"><span class="sp">${esc(t.n)} ${tagHTML(t.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${vs.length>1?vs.length+'变体·':''}${stepsN}步${hasForks?'→'+forkN+'条路线':''}${t.md?' · 每月'+t.md+'日':''}</span></span>
       <button data-fa="e" data-i="${i}">编辑</button>
       <button data-fa="x" data-i="${i}">删除</button></div>`;
   }).join('') : '<p class="empty" style="padding:8px">还没有模板</p>';
@@ -2548,7 +2629,7 @@ function flowEditor(t){
     }).join('')}</div>
     <label>每月几号自动开始（留空 = 只手动发起）</label>
     <input id="fwMd" class="edin" inputmode="numeric" style="background:var(--bg);margin-bottom:8px;width:110px" value="${t&&t.md?t.md:''}">
-    <label>步骤 · 一行一步 · ?可跳过 · [变体名]分支</label>
+    <label>步骤 · 一行一步 · ?可跳过 · [变体名]分支 · 分叉A[名称]运行时分叉</label>
     <textarea id="fwBody" placeholder="催同事确认增减员&#10;新增人员录入?&#10;提交报验&#10;申报&#10;缴费&#10;开具完税证明" style="width:100%;min-height:150px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:11px 13px;font-size:13px;color:var(--ink);font-family:var(--sans);outline:none;line-height:1.8;resize:vertical">${t?esc(t.body):''}</textarea>
     <button class="act" data-a="sv" style="background:var(--sage);color:#FBFBF6;text-align:center;margin-top:10px">保存模板</button>`);
   mini.querySelectorAll('[data-fc]').forEach(b=>b.addEventListener('click',()=>{
