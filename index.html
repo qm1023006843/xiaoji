@@ -338,7 +338,9 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
 .vfloat{cursor:pointer; background:none; border:none; padding:0;}
 #homeVase{margin:26px auto 0; width:150px; display:none;}
 #homeVase svg{width:100%; display:block;}
-#taskVase{margin:16px 0 0 26px; width:177px; display:none;}
+/* 任务页花瓶：冰箱贴模式——她拖到哪就贴哪（v2.5.3），位置存 D.g.vase.tp 跨设备同步 */
+#taskVase{position:absolute; left:48px; bottom:calc(96px + env(safe-area-inset-bottom)); width:177px; z-index:4; display:none; touch-action:none; cursor:grab; transition:transform .18s;}
+#taskVase.dragging{transform:scale(1.06); cursor:grabbing; transition:none;}
 #taskVase svg{width:100%; display:block;}
 /* 已完成列表：只露最新4条，余下在框内滚动；花瓶住线下自己的房间 */
 #doneList{max-height:160px; overflow-y:auto; overscroll-behavior:contain;}
@@ -395,9 +397,9 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
       <div id="taskList" style="margin-top:8px"></div>
       <div class="seclabel" style="margin-top:28px"><span>今日已完成</span></div>
       <div id="doneList"></div>
-      <div id="taskVase" class="vfloat"></div>
       <div style="height:120px"></div>
     </div>
+    <div id="taskVase" class="vfloat"></div>
     <button class="fab" id="fabAdd">+</button>
   </section>
 
@@ -703,7 +705,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.2 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.3 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -2822,9 +2824,11 @@ function plotState(p){
   if(!doom){ cum+=(p.ft||0); if(bs===null&&cum>=need) bs=TODAY; }
   if(doom) return {st:4,prog:Math.min(1,cum/need),bs:null};
   if(bs!==null){
-    const wd=addDays(bs,sp.gb);
-    if(TODAY>=wd) return {st:3,prog:1,bs};
-    return {st:2,prog:1,bs,daysLeft:diffDays(TODAY,wd)};
+    /* 花期联动（v2.5.3 她提议）：每 2 点 ft 缩短花期 1 天（最少保留 1 天），做事越多种子来得越快 */
+    const cut=Math.min(Math.floor((p.ft||0)/2),sp.gb-1);
+    const wd=addDays(bs,sp.gb-cut);
+    if(TODAY>=wd) return {st:3,prog:1,bs,cut};
+    return {st:2,prog:1,bs,cut,daysLeft:diffDays(TODAY,wd)};
   }
   if(cum<sp.gs) return {st:0,prog:cum/need,bs:null};
   return {st:1,prog:Math.min(1,cum/need),bs:null};
@@ -2876,7 +2880,7 @@ function gardenBonus(){
   g.plots.forEach(p=>{
     if(!p) return;
     const s=plotState(p);
-    if(s.st===0||s.st===1){ p.ft=(p.ft||0)+.5; any=true; }
+    if(s.st===0||s.st===1||s.st===2){ p.ft=(p.ft||0)+.5; any=true; }
   });
   if(any){ gTick(true); if(cur==='scr-garden') renderGardenTab(); renderVase(); }
 }
@@ -2985,6 +2989,16 @@ function svgVaseFull(){
   }
   return '<svg viewBox="0 0 100 96">'+svgVaseBody(v.vid)+water+stems+snail+petals+'</svg>';
 }
+var vaseDragged=false;
+function applyVasePos(el){
+  const tp=D.g.vase.tp; if(!tp) return;
+  const pr=el.parentElement.getBoundingClientRect();
+  const vw=el.offsetWidth||177, vh=el.offsetHeight||170;
+  const minY=64, pad=4;
+  const x=pad+tp.x*Math.max(0,pr.width-vw-pad*2);
+  const y=minY+tp.y*Math.max(0,pr.height-minY-vh-10);
+  el.style.left=x+'px'; el.style.top=y+'px'; el.style.bottom='auto';
+}
 function renderVase(){
   const g=D.g; if(!g) return;
   vaseRetireCheck(true);
@@ -2994,9 +3008,47 @@ function renderVase(){
     if(!show){ el.style.display='none'; return; }
     el.style.display='block';
     el.innerHTML=svgVaseFull();
-    el.onclick=vaseMini;
+    if(sel==='#taskVase'){ el.onclick=()=>{ if(!vaseDragged) vaseMini(); }; applyVasePos(el); }
+    else el.onclick=vaseMini;
   });
 }
+/* 冰箱贴：任务页花瓶拖动（只此一页，主页固定） */
+(function(){
+  const el=$('#taskVase'); if(!el) return;
+  let pid=null,sx=0,sy=0,ox=0,oy=0,drag=false;
+  el.addEventListener('pointerdown',e=>{
+    pid=e.pointerId; sx=e.clientX; sy=e.clientY; drag=false;
+    const r=el.getBoundingClientRect(), pr=el.parentElement.getBoundingClientRect();
+    ox=r.left-pr.left; oy=r.top-pr.top;
+    try{ el.setPointerCapture(pid); }catch(_){}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(pid===null||e.pointerId!==pid) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy;
+    if(!drag && Math.hypot(dx,dy)<7) return;
+    if(!drag){ drag=true; el.classList.add('dragging'); }
+    const pr=el.parentElement.getBoundingClientRect();
+    const vw=el.offsetWidth, vh=el.offsetHeight, minY=64, pad=4;
+    const nx=Math.max(pad,Math.min(pr.width-vw-pad,ox+dx));
+    const ny=Math.max(minY,Math.min(pr.height-vh-10,oy+dy));
+    el.style.left=nx+'px'; el.style.top=ny+'px'; el.style.bottom='auto';
+  });
+  const end=e=>{
+    if(pid===null||(e.pointerId!==undefined&&e.pointerId!==pid)) return;
+    pid=null; el.classList.remove('dragging');
+    if(drag){
+      const pr=el.parentElement.getBoundingClientRect();
+      const vw=el.offsetWidth, vh=el.offsetHeight, minY=64, pad=4;
+      const fx=(parseFloat(el.style.left)-pad)/Math.max(1,pr.width-vw-pad*2);
+      const fy=(parseFloat(el.style.top)-minY)/Math.max(1,pr.height-minY-vh-10);
+      D.g.vase.tp={x:Math.max(0,Math.min(1,fx)),y:Math.max(0,Math.min(1,fy))};
+      save();
+      vaseDragged=true; setTimeout(()=>{ vaseDragged=false; },350);
+    }
+  };
+  el.addEventListener('pointerup',end);
+  el.addEventListener('pointercancel',end);
+})();
 function vaseMini(){
   const g=D.g, v=g.vase;
   let rows=vaseStems().map(s=>'<div class="bstat"><span>'+POSN[s.pos]+' · '+SPECIES[s.sp].n+(s.sc?'（带疤）':'')+'</span><span class="v2">'+stemLeftLabel(s)+'</span></div>').join('');
@@ -3040,7 +3092,7 @@ function renderGardenMain(){
   if(g.hist.length){
     h+='<div class="gcard"><h4>花园史</h4>'+g.hist.slice(0,6).map(t=>'<div class="ghist">'+esc(t)+'</div>').join('')+'</div>';
   }
-  h+='<p class="gfoot2">完成任务=浇水 · 写点什么=施肥 · 记下心情=晒太阳<br>你好好过日子，花就开 ♡</p>';
+  h+='<p class="gfoot2">完成任务=浇水 · 写点什么=施肥 · 记下心情=晒太阳<br>你好好过日子，花就开，种子也来得快些 ♡</p>';
   document.querySelector('#gBody').innerHTML=h;
   $$('#gBody .plot').forEach(el=>el.addEventListener('click',()=>plotActions(+el.dataset.pi)));
   $$('#gBody [data-gn]').forEach(b=>b.addEventListener('click',()=>{ gSub=b.dataset.gn; renderGardenTab(); }));
@@ -3071,7 +3123,7 @@ function plotActions(i){
     return;
   }
   if(s.st===2){
-    openMini('<h5>'+sp.n+'开花了'+(p.fz===1?' · 花瓣带一道浅疤':'')+' · 还能开 '+s.daysLeft+' 天</h5>'+
+    openMini('<h5>'+sp.n+'开花了'+(p.fz===1?' · 花瓣带一道浅疤':'')+' · 还能开 '+s.daysLeft+' 天'+(s.cut?'<small style="display:block;font-weight:400;margin-top:3px;color:var(--sub)">你忙起来的日子，种子跟着快了 '+s.cut+' 天</small>':'')+'</h5>'+
       '<p style="font-size:12.5px;color:var(--sub);line-height:1.9;padding:0 4px 8px">剪与留，一盆一选：剪下来是眼前的花；留着开完，自然谢了结种子，是将来的花。</p>'+
       '<button class="act" data-a="cut">✂️ 剪下花枝（放到仓库货架）</button><button class="act" data-a="keep">留着，让它开完</button>');
     mini.querySelector('[data-a="cut"]').addEventListener('click',()=>{
