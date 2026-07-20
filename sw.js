@@ -1,7 +1,7 @@
-/* 小记 v2.5.0 · 离线支持
+/* 小记 v2.5.1 · 离线支持
    策略：页面走「先网络、断网用缓存」，图标等静态文件走「先缓存」。
    有网时永远拿最新版，断网时也能打开。 */
-const CACHE = 'xiaoji-v2.5.0';
+const CACHE = 'xiaoji-v2.5.1';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
