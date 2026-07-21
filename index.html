@@ -709,7 +709,7 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.5.6 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.5.7 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -2949,10 +2949,10 @@ function plotState(p){
     let v=b?1:0; if(v){ if(b&2)v+=.25; if(b&4)v+=.25; }
     cum+=v;
     if(p.fz===2 && cum>=need*p.df){ doom=d; break; }
-    if(bs===null && cum>=need) bs=d;
+    if(bs===null && (cum+(p.ft||0))>=need) bs=d;
     if(d===TODAY) break;
   }
-  if(!doom){ cum+=(p.ft||0); if(bs===null&&cum>=need) bs=TODAY; }
+  if(!doom) cum+=(p.ft||0);
   if(doom) return {st:4,prog:Math.min(1,cum/need),bs:null};
   if(bs!==null){
     /* 花期联动（v2.5.3 她提议）：每 2 点 ft 缩短花期 1 天（最少保留 1 天），做事越多种子来得越快 */
