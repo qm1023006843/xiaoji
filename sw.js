@@ -1,9 +1,9 @@
-/* 小记 v2.6.0 · 离线支持
+/* 小记 v2.6.1 · 离线支持
    策略：页面走「先网络、断网用缓存」，图标等静态文件走「先缓存」。
    有网时永远拿最新版，断网时也能打开。
    v2.6.0 起分家：style.css / app.js 引用带版本 query，随 CACHE 名一起 bump，防新旧混装。 */
-const CACHE = 'xiaoji-v2.6.0';
-const CORE = ['./', './index.html', './style.css?v=2.6.0', './app.js?v=2.6.0', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = 'xiaoji-v2.6.1';
+const CORE = ['./', './index.html', './style.css?v=2.6.1', './core.js?v=2.6.1', './store.js?v=2.6.1', './app.js?v=2.6.1', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
