@@ -1,4 +1,4 @@
-/* 小记 v2.6.5 · garden-ui：花园界面（剪影/花瓶/拖拽/商店/图鉴/妈咪的花园） */
+/* 小记 v2.7.0 · garden-ui：花园界面（剪影/花瓶/拖拽/商店/图鉴/妈咪的花园） */
 'use strict';
 function svgPot(){ return '<path d="M32 76h36l-4 15H36z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/><ellipse cx="50" cy="76" rx="19" ry="3.5" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/>'; }
 function svgFx(st,scar,hex){
@@ -7,6 +7,10 @@ function svgFx(st,scar,hex){
   const P='fill="'+fc+'" stroke="none"';
   if(st===0) return svgPot()+'<path d="M42 74q8-4 16 0" '+G+' opacity=".5"/><circle cx="50" cy="71" r="2.6" fill="var(--apricot-ink)"/><path d="M57 63l2-3M61 66l3-1" stroke="var(--faint)" stroke-width="1.4" stroke-linecap="round"/>';
   if(st===1) return svgPot()+'<path d="M50 76V52" '+G+'/><path d="M50 66q-9-2-12-9 8-2 12 5M50 60q9-2 12-9-8-2-12 5" fill="var(--sage)" opacity=".85"/><path d="M50 52q-5-1-7-5 5-1 7 3" fill="var(--sage)"/>';
+  if(st===5) return svgPot()+'<path d="M50 76V36" '+G+'/>'+
+    '<path d="M50 64q-9-2-12-9 8-2 12 5M50 56q9-2 12-9-8-2-12 5M50 47q-7-1-10-6 6-2 10 4" fill="var(--sage)" opacity=".85"/>'+
+    '<g '+P+' opacity=".9"><ellipse cx="46" cy="33.5" rx="2.6" ry="3.4" transform="rotate(-12 46 33.5)"/><ellipse cx="55" cy="29.5" rx="2.4" ry="3.2" transform="rotate(14 55 29.5)"/><ellipse cx="50" cy="24.5" rx="2.8" ry="3.6"/></g>'+
+    '<path d="M46 37.5q-2 1-3.5 0.5M55 33q2 0.5 3.5-0.5" stroke="var(--sage)" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
   if(st===2){
     const scarMark=scar?'<path d="M36.5 44l5 4" stroke="var(--apricot-ink)" stroke-width="1.6" stroke-linecap="round"/>':'';
     return svgPot()+'<path d="M50 76V30" '+G+'/><path d="M50 64q-10-2-13-10 9-2 13 6M50 56q10-2 13-10-9-2-13 6M50 46q-8-1-11-7 7-2 11 5" fill="var(--sage)" opacity=".85"/>'+
@@ -164,7 +168,7 @@ function renderGardenMain(){
   if(g.hist.length){
     h+='<div class="gcard"><h4>花园史</h4>'+g.hist.slice(0,6).map(t=>'<div class="ghist">'+esc(t)+'</div>').join('')+'</div>';
   }
-  h+='<p class="gfoot2">完成任务=浇水 · 写点什么=施肥 · 记下心情=晒太阳<br>你好好过日子，花就开，种子也来得快些 ♡</p>';
+  h+='<p class="gfoot2">花自己按钟点长，睡觉也长；你每做完一件事，全园快 4 小时<br>你好好过日子，种子来得更快 ♡</p>';
   document.querySelector('#gBody').innerHTML=h;
   $$('#gBody .plot').forEach(el=>el.addEventListener('click',()=>plotActions(+el.dataset.pi)));
   $$('#gBody [data-gn]').forEach(b=>b.addEventListener('click',()=>{ gSub=b.dataset.gn; renderGardenTab(); }));
@@ -181,25 +185,26 @@ function plotActions(i){
       let fz=0, df=0;
       const r=Math.random();
       if(r<0.07){ if(Math.random()<0.7) fz=1; else { fz=2; df=0.4+Math.random()*0.5; } }
-      g.plots[i]={id:uid(),sp:k,pd:TODAY,fz,df,mk:0};
+      g.plots[i]={id:uid(),sp:k,pt:gtNow(),fz,df,mk:0,acc:0};
       gbook(k).pl++;
       ghist('种下一颗'+spName(k)+'的种子');
-      save(); closeMini(); renderGardenTab(); toast('种下了 · 往后你过日子，它长个子');
+      save(); closeMini(); renderGardenTab(); toast('种下了 · 它这就开始长，你做事它加速');
     }));
     return;
   }
   const s=plotState(p), sp=spOf(p.sp);
-  if(s.st===0||s.st===1){
-    openMini('<h5>'+sp.n+' · '+(s.st===0?'种子睡在土里':'生长中 '+Math.round(s.prog*100)+'%')+'</h5>'+
-      '<p style="font-size:12.5px;color:var(--sub);line-height:1.9;padding:0 4px 8px">'+careLabel(careBits(TODAY))+'。<br>它不用你专门伺候——完成任务、写点什么、记个心情，它就跟着长。哪天你歇着，它也歇着，不催。</p>');
+  if(s.st===0||s.st===1||s.st===5){
+    const ttl=s.st===0?'种子睡在土里':(s.st===5?'含苞了 · 全程 '+Math.round(s.prog*100)+'%':'生长中 · 全程 '+Math.round(s.prog*100)+'%');
+    openMini('<h5>'+sp.n+' · '+ttl+'</h5>'+
+      '<p style="font-size:12.5px;color:var(--sub);line-height:1.9;padding:0 4px 8px">'+careLabel(careBits(TODAY))+'。<br>它自己按钟点长，你歇着它也长；你每做完一件事，全园快 4 小时。'+(p.acc?'<br>你的日子已经替它赶了 '+Math.round(p.acc)+' 小时的路。':'')+(s.st===5?'<br>苞都鼓起来了，快了。':'')+'</p>');
     return;
   }
   if(s.st===2){
-    openMini('<h5>'+spName(p.sp)+'开花了'+(p.fz===1?' · 花瓣带一道浅疤':'')+' · 还能开 '+s.daysLeft+' 天'+(s.cut?'<small style="display:block;font-weight:400;margin-top:3px;color:var(--sub)">你忙起来的日子，种子跟着快了 '+s.cut+' 天</small>':'')+'</h5>'+
+    openMini('<h5>'+spName(p.sp)+'开花了'+(p.fz===1?' · 花瓣带一道浅疤':'')+' · 还能开约 '+fmtH(s.hoursLeft)+(p.acc?'<small style="display:block;font-weight:400;margin-top:3px;color:var(--sub)">你的日子替它赶了 '+Math.round(p.acc)+' 小时，种子也会来得早</small>':'')+'</h5>'+
       '<p style="font-size:12.5px;color:var(--sub);line-height:1.9;padding:0 4px 8px">剪与留，一盆一选：剪下来是眼前的花；留着开完，自然谢了结种子，是将来的花。</p>'+
       '<button class="act" data-a="cut">✂️ 剪下花枝（放到仓库货架）</button><button class="act" data-a="keep">留着，让它开完</button>');
     mini.querySelector('[data-a="cut"]').addEventListener('click',()=>{
-      D.g.inv.push({id:uid(),sp:p.sp,sc:p.fz===1?1:0,ph:0,F:0,B:0,Dc:0,lt:Date.now(),loc:'shelf',pos:null});
+      D.g.inv.push({id:uid(),sp:p.sp,sc:p.fz===1?1:0,ph:0,F:0,B:0,Dc:0,lt:gtNow(),loc:'shelf',pos:null});
       D.g.plots[i]=null;
       ghist('剪下一枝'+spName(p.sp)+(p.fz===1?'（带疤的那株）':''));
       save(); closeMini(); renderGardenTab(); toast('剪下来了 · 在仓库货架上');
@@ -341,7 +346,7 @@ function renderStore(){
   h+='</div>';
   h+='<div class="gcard"><h4>肥料</h4>';
   if((g.fert||0)>0){
-    h+='<div class="grow2"><span class="sp2">营养土<span class="sub2">每包 +0.5 生长值</span></span><span style="font-size:13px;color:var(--sub)">'+g.fert+' 包</span> <button class="pri" data-sa="usefert">施肥</button></div>';
+    h+='<div class="grow2"><span class="sp2">营养土<span class="sub2">每包快 10 小时</span></span><span style="font-size:13px;color:var(--sub)">'+g.fert+' 包</span> <button class="pri" data-sa="usefert">施肥</button></div>';
   } else h+='<p class="empty" style="padding:8px">没有肥料 · 商店有售，妈咪也会寄</p>';
   h+='</div>';
   document.querySelector('#gBody').innerHTML=h; wireBack(); wireStemBtns(renderStore);
@@ -351,14 +356,14 @@ function renderStore(){
 function useFert(){
   const g=D.g;
   if(!g.fert){ toast('没有肥料'); return; }
-  const cands=g.plots.map((p,i)=>{ if(!p) return null; const s=plotState(p); return (s.st===0||s.st===1)?{i,p,s}:null; }).filter(Boolean);
+  const cands=g.plots.map((p,i)=>{ if(!p) return null; const s=plotState(p); return (s.st===0||s.st===1||s.st===5||s.st===2)?{i,p,s}:null; }).filter(Boolean);
   if(!cands.length){ toast('没有正在生长的花可以施肥'); return; }
   openMini('<h5>给哪盆花施肥？</h5><div class="catwrap">'+cands.map(c=>'<button class="chip" data-fi="'+c.i+'">'+spName(c.p.sp)+'（第'+(c.i+1)+'盆）</button>').join('')+'</div>');
   $$('.chip[data-fi]').forEach(b=>b.addEventListener('click',()=>{
     const i=+b.dataset.fi, p=g.plots[i];
-    p.ft=(p.ft||0)+.5; g.fert--;
+    p.acc=(p.acc||0)+10; g.fert--;
     ghist('给第'+(i+1)+'盆'+spName(p.sp)+'施了一包肥');
-    save(); closeMini(); gTick(true); renderStore(); toast('施肥成功 · +0.5 生长值');
+    save(); closeMini(); gTick(true); renderStore(); toast('施肥成功 · 快 10 小时');
   }));
 }
 function renderShop(){
@@ -390,7 +395,7 @@ function renderShop(){
   });
   h+='</div>';
   h+='<div class="gcard"><h4>肥料<small>催一催进度</small></h4>';
-  h+='<div class="grow2"><span class="sp2">营养土 · 2 花币<span class="sub2">每包 +0.5 生长值 · 仓库里有 '+(g.fert||0)+' 包</span></span><button '+(g.coins<2?'disabled style="opacity:.4"':'class="pri"')+' data-ba="fert">买一包</button></div>';
+  h+='<div class="grow2"><span class="sp2">营养土 · 2 花币<span class="sub2">每包快 10 小时 · 仓库里有 '+(g.fert||0)+' 包</span></span><button '+(g.coins<2?'disabled style="opacity:.4"':'class="pri"')+' data-ba="fert">买一包</button></div>';
   h+='</div>';
   h+='<div class="gcard"><h4>花瓶与花盆</h4>';
   Object.keys(VASES).forEach(k=>{

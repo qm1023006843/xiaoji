@@ -257,7 +257,7 @@ function completeVirtual(el,v){
     if(v.kind==='tpl') entry.tid=v.id;
     D.log.push(entry);
     if(v.kind==='task') D.tasks=D.tasks.filter(t=>t.id!==v.id);
-    gardenCare(1); gardenBonus();
+    gardenCare(1); gardenAccel(4);
     save();
     setTimeout(()=>{ renderTasks(); },580);
     if(!v.reward) gacha();
@@ -307,7 +307,7 @@ function doFlowStep(el,f,i){
     const lid=uid(); s.logId=lid;
     D.log.push({id:lid,name:flogName(f,s),cat:f.cat,ts:s.ts,date:TODAY,cd:f.started,src:'flow',fid:f.id,fn:f.n+(f.note?'（'+f.note+'）':'')});
     const rest=f.steps.some(x=>!x.done&&!x.skip);
-    gardenCare(1); gardenBonus();
+    gardenCare(1); gardenAccel(4);
     save();
     if(!rest&&f.forks&&f.forks.length){
       setTimeout(()=>{ renderTasks(); },400);

@@ -14,7 +14,7 @@ $('#moodSave').addEventListener('click',()=>{
   const v=+slider.value;
   D.moods.push({id:uid(),ts:tsNow(),date:TODAY,v,note:moodNote.value.trim(),src:'mood'});
   moodNote.value='';
-  gardenCare(4); gardenBonus();
+  gardenCare(4); gardenAccel(4);
   save(); drawMood(); renderMoodList(); toast('已记下这一刻');
 });
 let moodRange='m', pts=[];

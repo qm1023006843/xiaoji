@@ -261,7 +261,7 @@ $('#nSave2').addEventListener('click',async()=>{
     }
     syncMood(e);
     D.notes.entries.push(e);
-    gardenCare(2); if(mood!==null) gardenCare(4); gardenBonus();
+    gardenCare(2); if(mood!==null) gardenCare(4); gardenAccel(4);
     toast(importTs?'已导入并保存':(locked?'已加密保存 🔒':'已保存'));
     importTs=null;
   }

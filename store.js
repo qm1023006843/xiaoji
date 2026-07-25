@@ -1,4 +1,4 @@
-/* 小记 v2.6.1 · store：数据中心——D 的家（默认值/迁移/save/跨天自愈）+ 事件铃铛 */
+/* 小记 v2.7.0 · store：数据中心——D 的家（默认值/迁移/save/跨天自愈）+ 事件铃铛 */
 'use strict';
 /* ================= 事件铃铛 ================= */
 /* 模块间不再直调：做完事喊一声，谁关心谁自己听。save() 喊 'changed'，云端听见排队推送。 */
@@ -102,6 +102,16 @@ D.g.plots.forEach(function(p){if(p&&p.sp==='fx')p.sp='fx_mr';});
 (D.g.gifts||[]).forEach(function(gf){if(gf&&gf.sp==='fx')gf.sp='fx_mr';});
 if(D.g.book&&D.g.book.fx&&!D.g.book.fx_mr){D.g.book.fx_mr=D.g.book.fx;delete D.g.book.fx;}
 if(D.g.wk&&D.g.wk.b&&D.g.wk.b.fx!==undefined){D.g.wk.b.fx_mr=(D.g.wk.b.fx_mr||0)+D.g.wk.b.fx;delete D.g.wk.b.fx;}
+/* v2.7 migration: 花园新引擎 · 清园补籽（她拍板：旧账不折算，一盆一籽、一枝一籽退回，开新账） */
+if(D.g && !D.g.ev){
+  D.g.ev=2;
+  let back=0;
+  D.g.plots=D.g.plots.map(p=>{ if(p&&p.sp){ D.g.seeds[p.sp]=(D.g.seeds[p.sp]||0)+1; back++; } return null; });
+  (D.g.inv||[]).forEach(st=>{ if(st&&st.sp){ D.g.seeds[st.sp]=(D.g.seeds[st.sp]||0)+1; back++; } });
+  D.g.inv=[];
+  if(D.g.vase){ D.g.vase.ws=null; D.g.vase.snail=false; }
+  if(back){ D.g.hist.unshift(fmtMD(todayISO())+'　花园换了新的钟——旧盆栽旧花枝化作 '+back+' 颗种子回到袋里，新账从今天记起'); if(D.g.hist.length>40) D.g.hist.length=40; }
+}
 function save(silent){
   if(!silent) D._ts=Date.now();
   try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); }
