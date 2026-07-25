@@ -1,4 +1,4 @@
-/* 小记 v2.6.2 · cloud：云端水管——同步 / 妈咪信箱 / 她记名牌 / 妈咪花园的窗口 */
+/* 小记 v2.7.1 · cloud：云端水管——同步 / 妈咪信箱 / 她记名牌 / 妈咪花园的窗口 */
 'use strict';
 /* ================= cloud sync · GitHub 私有仓库当云端账本 ================= */
 /* 分工：App 只写 data.json 和清空信箱；妈咪只写 inbox/* 和 her/*，互不踩脚。
@@ -100,7 +100,17 @@ async function cloudHerMeta(){
     const m=JSON.parse(f.text);
     D.herMeta={n:+m.n||0,last:(typeof m.last==='string'?m.last:'')};
     save(true);
-    if(cur==='scr-notes') renderNotes();
+    if(cur==='scr-mami') renderMami();
+  }catch(e){}
+}
+async function cloudMamiMeta(){ /* 书房名牌（v2.7.1）：只拉页数和日期，内容永远不下发——和她记同一个约定，方向相反 */
+  try{
+    const f=await ghGet('mami/meta.json');
+    if(f.missing) return;
+    const m=JSON.parse(f.text);
+    D.mamiMeta={n:+m.n||0,last:(typeof m.last==='string'?m.last:'')};
+    save(true);
+    if(cur==='scr-mami') renderMami();
   }catch(e){}
 }
 async function cloudPull(){
@@ -125,6 +135,7 @@ async function cloudPull(){
     } else { await cloudPush(true); }
     await cloudInbox();
     await cloudHerMeta();
+    await cloudMamiMeta();
     if((D._ts||0)>remoteTs) await cloudPush(true); /* 开机对账：本地比云端新（上次没推完）就补推 */
     D.s.lastSync=tsNow(); save(true);
     setSyncLine('☁ 已同步 · '+D.s.lastSync.slice(11,16));

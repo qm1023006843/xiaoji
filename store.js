@@ -71,6 +71,7 @@ D.notes.types.forEach((t,i)=>{ if(t.c===undefined) t.c=[4,5,7,10,11][i%5]; });
     else D.notes.types=D.notes.types.filter(t=>t.id!=='her');
   }
   if(D.herMeta===undefined) D.herMeta=null;
+  if(D.mamiMeta===undefined) D.mamiMeta=null; /* v2.7.1 书房名牌 */
 })();
 /* v2.5 migration: 花园（她与妈咪共同设计 · 2026-07-20 定稿） */
 if(!D.g) D.g={

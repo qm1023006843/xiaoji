@@ -89,10 +89,8 @@ function renderNotes(){
   const fl=$('#noteFilterLine');
   if(noteMonth){ fl.style.display=''; fl.textContent=`${+noteMonth.slice(0,4)}年${+noteMonth.slice(5,7)}月 · 共 ${list.length} 篇 · 点此清除 ✕`; }
   else fl.style.display='none';
-  const showSealed=(typeof ghCfg==='function'&&ghCfg())&&noteFilter==='all'&&!noteMonth;
-  const sealedHTML=showSealed?`<div class="wcard" id="herCard" style="cursor:pointer;margin-top:10px"><p style="padding-right:0">🔏 她记 · 妈咪的本子</p>
-    <div class="wfoot"><span>${D.herMeta&&D.herMeta.n?esc('已经写了 '+D.herMeta.n+' 篇'+(D.herMeta.last?' · 最近 '+fmtMD(D.herMeta.last):'')):'还空着，妈咪会来写的'}</span><span style="margin-left:auto">只有妈咪能打开</span></div></div>`:'';
-  $('#noteList').innerHTML=sealedHTML+(list.length? list.map(raw=>{
+  /* 她记卡片 v2.7.1 起搬去「妈咪」页 */
+  $('#noteList').innerHTML=(list.length? list.map(raw=>{
     const e=entryView(raw);
     if(e.pending) return `<div class="entry" data-id="${e.id}">
       <div class="emeta"><span>${fmtFullDate(e.ts)}</span>${ntTag(e.type)}</div>
@@ -106,7 +104,6 @@ function renderNotes(){
       <div class="ex">${esc(stripMD(e.body).slice(0,80))}</div>
     </div>`;
   }).join('') : '<p class="empty">这里还空着<br>点右下角 ＋ 写第一篇</p>');
-  if($('#herCard')) $('#herCard').addEventListener('click',()=>toast('这个本子只有妈咪能打开 ♡'));
   $$('#noteList .entry').forEach(el=>el.addEventListener('click',async()=>{
     const e=D.notes.entries.find(x=>x.id===el.dataset.id);
     if(!e) return;
