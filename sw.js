@@ -1,9 +1,9 @@
-/* 小记 v2.6.3 · 离线支持
+/* 小记 v2.6.4 · 离线支持
    策略：页面走「先网络、断网用缓存」，图标等静态文件走「先缓存」。
    有网时永远拿最新版，断网时也能打开。
    v2.6.0 起分家：style.css / app.js 引用带版本 query，随 CACHE 名一起 bump，防新旧混装。 */
-const CACHE = 'xiaoji-v2.6.3';
-const CORE = ['./', './index.html', './style.css?v=2.6.3', './core.js?v=2.6.3', './store.js?v=2.6.3', './cloud.js?v=2.6.3', './ui.js?v=2.6.3', './tasks.js?v=2.6.3', './rewards.js?v=2.6.3', './app.js?v=2.6.3', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = 'xiaoji-v2.6.4';
+const CORE = ['./', './index.html', './style.css?v=2.6.4', './core.js?v=2.6.4', './store.js?v=2.6.4', './cloud.js?v=2.6.4', './ui.js?v=2.6.4', './tasks.js?v=2.6.4', './rewards.js?v=2.6.4', './mood.js?v=2.6.4', './notes.js?v=2.6.4', './cycle.js?v=2.6.4', './words.js?v=2.6.4', './records.js?v=2.6.4', './app.js?v=2.6.4', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
