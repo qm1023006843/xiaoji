@@ -1,10 +1,10 @@
-/* 小记 v2.6.5 · garden-engine：花园引擎（纯逻辑：品种/生长/照料/花枝计时/信箱签收）——v2.7 新引擎就在这里动刀 */
+/* 小记 v2.7.0 · garden-engine：花园引擎（纯逻辑：品种/生长/加速/花枝计时/信箱签收） */
 'use strict';
-/* ================= garden v2.5 · 她与妈咪共同设计 =================
-   原则：不搞愧疚教育——没照料=打盹不长，绝不枯死；天灾不天谴——遇灾全自动，无抢救按钮。
-   照料唯一来源是生活：完成任务=浇水，写字=施肥，记心情=晒太阳。 */
+/* ================= garden v2.7 · 她与妈咪共同设计 =================
+   原则：不搞愧疚教育——花自己按钟点长，睡觉也长，永不枯死等她；天灾不天谴——遇灾全自动，无抢救按钮。
+   照料印章只当晴雨表（完成任务=浇水，写字=施肥，记心情=晒太阳）；生长吃的是时间，和她做事攒下的加速。 */
 const SPECIES={
-  fx:{n:'凤仙花',a:'毛桃',seed:10,sell:6,gs:.5,gg:4,gb:3,wkLim:2,
+  fx:{n:'凤仙花',a:'毛桃',seed:10,sell:6,gt:72,wkLim:2,
       lang:'果荚一碰就炸，把攒了一夏天的种子弹得到处都是——设防的壳里，全是想给出去的心。',
       colors:{mr:{n:'玫红',hex:'#C25E9B'},dz:{n:'淡紫',hex:'#9B7EC8'},cb:{n:'纯白',hex:'#F0E8DC'},sf:{n:'水粉',hex:'#E8A0B8'},qv:{n:'浅绿',hex:'#7BC8A4'},th:{n:'桃红',hex:'#E06878'}}}
 };
@@ -33,44 +33,34 @@ const FRIDGES={
   f2:{n:'双门冰箱',cap:6,mult:4,price:150}
 };
 const STEM_LIFE=72;
-const VASE_BASE=120;
+const VASE_BASE=72;  /* v2.7 她定的：展示 72 小时 */
 const POSN={l:'左',c:'中',r:'右'};
 function gbook(sp){ const k=spBase(sp); const g=D.g; g.book[k]=g.book[k]||{pl:0,bl:0,sd:0,sc:0,ee:0,first:null}; return g.book[k]; }
 function ghist(t){ D.g.hist.unshift(fmtMD(TODAY)+'　'+t); if(D.g.hist.length>40) D.g.hist.length=40; }
 function careBits(d){ return D.g.care[d]||0; }
 function careLabel(b){ if(!b) return '今天还没照料'; const a=[]; if(b&1)a.push('浇过水'); if(b&2)a.push('施过肥'); if(b&4)a.push('晒过太阳'); return '今天'+a.join('、'); }
 function fridgeMult(){ const g=D.g; return g.fridge?FRIDGES[g.fridge].mult:3; }
+/* v2.7 新引擎（2026-07-25 她拍板：「等着实在是太痛苦了」）：时间自然长 + 做事加速。
+   阶段按品种总时长(gt)比例分：种子10% / 发芽35% / 含苞20%(st5) / 开花35%；结籽(st3)不占时间，不腐烂，等她来收。
+   进度小时 = (现在 - 种下时刻pt) + 累计加速acc。plot 结构：{id,sp,pt(ms),fz,df,mk,acc(h)}。
+   天灾株(fz2)在通往开花的路上 df 处早谢（0.65T×df，永远走不到开花）——加速也会把告别提前，她点头过。
+   调试：?now=毫秒或ISO时间 可拨快引擎的钟（连同花枝计时）。 */
+function gtNow(){ const q=qp.get('now'); if(q) return /^\d+$/.test(q)?+q:new Date(q).getTime(); return Date.now(); }
+function plotHours(p){ return Math.max(0,(gtNow()-p.pt)/3600000)+(p.acc||0); }
+function bsDate(p,T){ const d=new Date(gtNow()-(plotHours(p)-0.65*T)*3600000); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function plotState(p){
-  const sp=spOf(p.sp), need=sp.gs+sp.gg;
-  let cum=0, bs=null, doom=null;
-  for(let d=p.pd;;d=addDays(d,1)){
-    if(d>TODAY) break;
-    const b=careBits(d);
-    let v=b?1:0; if(v){ if(b&2)v+=.25; if(b&4)v+=.25; }
-    cum+=v;
-    if(p.fz===2 && cum>=need*p.df){ doom=d; break; }
-    if(bs===null && (cum+(p.ft||0))>=need) bs=d;
-    if(d===TODAY) break;
-  }
-  if(!doom) cum+=(p.ft||0);
-  if(doom) return {st:4,prog:Math.min(1,cum/need),bs:null};
-  if(bs!==null){
-    /* 花期联动（v2.5.3 她提议）：每 2 点 ft 缩短花期 1 天（最少保留 1 天），做事越多种子来得越快 */
-    const cut=Math.min(Math.floor((p.ft||0)/2),sp.gb-1);
-    const wd=addDays(bs,sp.gb-cut);
-    if(TODAY>=wd) return {st:3,prog:1,bs,cut};
-    return {st:2,prog:1,bs,cut,daysLeft:diffDays(TODAY,wd)};
-  }
-  if(cum<sp.gs) return {st:0,prog:cum/need,bs:null};
-  return {st:1,prog:Math.min(1,cum/need),bs:null};
+  const sp=spOf(p.sp), T=sp.gt;
+  const h=plotHours(p), f=h/T;
+  if(p.fz===2){ const dh=0.65*T*p.df; if(h>=dh) return {st:4,prog:Math.min(1,f)}; }
+  if(h>=T) return {st:3,prog:1,bs:bsDate(p,T)};
+  if(f<.10) return {st:0,prog:f};
+  if(f<.45) return {st:1,prog:f};
+  if(f<.65) return {st:5,prog:f};
+  return {st:2,prog:f,bs:bsDate(p,T),hoursLeft:T-h};
 }
 function pruneCare(){
-  const g=D.g;
-  let floor=addDays(TODAY,-120);
-  const pds=g.plots.filter(Boolean).map(p=>p.pd).sort();
-  if(pds.length && addDays(pds[0],-2)>floor) floor=addDays(pds[0],-2);
-  else if(!pds.length) floor=addDays(TODAY,-7);
-  Object.keys(g.care).forEach(k=>{ if(k<floor) delete g.care[k]; });
+  const floor=addDays(TODAY,-120);
+  Object.keys(D.g.care).forEach(k=>{ if(k<floor) delete D.g.care[k]; });
 }
 function gTick(silent){
   const g=D.g; if(!g) return;
@@ -105,19 +95,20 @@ function gardenCare(bit){
   if(cur==='scr-garden') renderGardenTab();
   renderVase();
 }
-function gardenBonus(){
+/* 加速（v2.7 取代 gardenBonus）：每做完一件事全园 −4h；肥料一包 −10h。结籽(st3)/已谢(st4)不吃加速。 */
+function gardenAccel(hrs){
   const g=D.g; if(!g) return;
   let any=false;
   g.plots.forEach(p=>{
     if(!p) return;
     const s=plotState(p);
-    if(s.st===0||s.st===1||s.st===2){ p.ft=(p.ft||0)+.2; any=true; }
+    if(s.st===0||s.st===1||s.st===5||s.st===2){ p.acc=(p.acc||0)+(hrs||4); any=true; }
   });
   if(any){ gTick(true); if(cur==='scr-garden') renderGardenTab(); renderVase(); }
 }
 /* 花枝两段计时：ph0 新鲜度 F(0→72h)，货架1×冰箱1/倍率；ph1 展示预算 B，瓶1×冰箱1/倍率（她的公式） */
 function stemTick(s){
-  const now=Date.now();
+  const now=gtNow();
   if(!s.lt){ s.lt=now; return s; }
   const h=(now-s.lt)/3600000;
   if(s.ph===0){ s.F=(s.F||0)+h*(s.loc==='fridge'?1/fridgeMult():1); }
