@@ -42,6 +42,19 @@ function tplFreqLabel(p){
   if(f==='monthly') return '每月'+(p.md||1)+'日';
   return '每日';
 }
+function ttLabel(p){ const t=p.tt||'once'; return t==='span'?'跨'+(p.len||1)+'天':t==='idle'?'长期':'当日'; }
+function nextWindow(p,ws){
+  const f=p.freq||'daily';
+  if(f==='every') return addDays(ws,Math.max(2,p.n||3));
+  if(f==='weekly') return addDays(ws,7);
+  if(f==='monthly'){
+    let y=+ws.slice(0,4), m=+ws.slice(5,7)+1;
+    if(m>12){ m=1; y++; }
+    const md=Math.min(Math.max(1,p.md||1),31);
+    return `${y}-${String(m).padStart(2,'0')}-${String(Math.min(md,dimOf(y,m))).padStart(2,'0')}`;
+  }
+  return null; /* daily 无窗口推进 */
+}
 /* ---- workflow (流程) ---- */
 function parseFlow(body){
   const lines=(body||'').split('\n').map(s=>s.trim()).filter(Boolean);
@@ -99,8 +112,11 @@ function showForkChoice(f){
 function ensureFlows(){
   let changed=false;
   D.flows.tmpl.forEach(t=>{
-    if(!t.md) return;
-    const ws=tplWindow({freq:'monthly',md:t.md});
+    const freq=t.freq||(t.md?'monthly':null);
+    if(!freq) return;
+    if(freq==='every'&&!t.created) return;
+    const ws=tplWindow(freq==='every'?{freq,n:t.nd,created:t.created}:(t.freq?t:{freq:'monthly',md:t.md}));
+    if(!ws) return;
     if(t.lastWin!==ws){ t.lastWin=ws; if(spawnFlow(t,0)) changed=true; }
   });
   if(changed) save();
@@ -112,8 +128,14 @@ function virtualTasks(){
     if(p.active===false || p.skip===TODAY) return;
     const ws=tplWindow(p);
     if(!ws) return;
-    const done=D.log.some(l=>l.tid===p.id && l.date>=ws);
-    if(!done) out.push({kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily',freqLabel:tplFreqLabel(p),ws});
+    if(D.log.some(l=>l.tid===p.id && l.date>=ws)) return;
+    const tt=p.tt||'once';
+    const v={kind:'tpl',id:p.id,name:p.name,cat:p.cat,type:'daily',tt,freqLabel:tplFreqLabel(p),ws,remark:p.remark};
+    if(tt==='span'){
+      v.end=addDays(ws,Math.max(1,p.len||1)-1);
+      if(TODAY>v.end) return;
+    }
+    out.push(v);
   });
   D.tasks.forEach(t=>{
     if(t.type==='once' && t.date===TODAY) out.push({kind:'task',...t});
@@ -123,6 +145,27 @@ function virtualTasks(){
   return out;
 }
 function todayTotal(){ return virtualTasks().length + D.log.filter(l=>l.date===TODAY).length; }
+/* 循环跨时段：漏掉的窗口补记废弃（高水位 ldw 逐窗推进，60 窗封顶防病态） */
+function ensureTplDisc(){
+  let dirty=false;
+  D.tpl.forEach(p=>{
+    if((p.tt||'once')!=='span') return;
+    const len=Math.max(1,p.len||1);
+    let ws=p.ldw;
+    if(!ws){ ws=tplWindow(p); if(!ws) return; p.ldw=ws; dirty=true; }
+    let g=0;
+    while(g++<60){
+      const end=addDays(ws,len-1);
+      if(end>=TODAY) break;
+      const nx=nextWindow(p,ws);
+      if(!nx||nx<=ws) break;
+      if(p.active!==false && end>=(p.created||'') && !D.log.some(l=>l.tid===p.id&&l.date>=ws&&l.date<=end))
+        D.disc.push({name:p.name,cat:p.cat,date:end});
+      ws=nx; p.ldw=ws; dirty=true;
+    }
+  });
+  if(dirty) save();
+}
 function taskEl(v){
   const el=document.createElement('div');
   el.className='task'+(v.reward?' reward-task':'');
@@ -160,13 +203,19 @@ function taskEl(v){
   }
   let meta=tagHTML(v.cat, v.reward?'奖励':null);
   if(v.fromMom) meta=tagHTML(null,'♡ 妈咪')+meta;
-  if(v.type==='daily') meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
+  if(v.type==='daily'){
+    meta+=`<span class="rep"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><polyline points="17.5 3 17.8 6.6 14.2 6.9"/><polyline points="6.5 21 6.2 17.4 9.8 17.1"/></svg>${v.freqLabel||'每日'}</span>`;
+    if(v.tt==='span') meta+=`<span>至 ${fmtMD(v.end)}</span>`;
+    else if(v.tt==='idle') meta+=`<span>🛋 长期</span>`;
+  }
   else if(v.type==='span') meta+=`<span>跨时段 · 至 ${fmtMD(v.end)}</span>`;
   else if(v.type==='idle') meta+=`<span>🛋 长期 · 不催</span>`;
   else if(!v.reward) meta+=`<span>今日 · 一次性</span>`;
+  if(v.remark) meta+=`<span style="font-size:12px;color:var(--sub)">📎 ${esc(v.remark)}</span>`;
   let prog='';
-  if(v.type==='span'){
-    const tot=diffDays(v.start,v.end)+1, cur=diffDays(v.start,TODAY)+1;
+  if(v.type==='span'||v.tt==='span'){
+    const st=v.type==='span'?v.start:v.ws;
+    const tot=diffDays(st,v.end)+1, cur=diffDays(st,TODAY)+1;
     prog=`<div class="tprog"><div class="bar2"><i style="width:${Math.min(100,Math.round(cur/tot*100))}%"></i></div><span>已进行 ${cur}/${tot} 天</span></div>`;
   }
   const useBtn=D.s.taskStyle==='btn';
@@ -198,6 +247,7 @@ function groupFlowLogs(list,hideActive){
 }
 function flowStepName(name){ return name.includes('｜')?name.split('｜').slice(1).join('｜'):name; }
 function renderTasks(){
+  ensureTplDisc();
   // filter chips
   const chips=[['all','全部'],...D.cats.map(c=>[c.id,c.n])];
   if(!D.cats.find(c=>c.id===D.s.tFilter) && D.s.tFilter!=='all') D.s.tFilter='all';
@@ -255,6 +305,7 @@ function completeVirtual(el,v){
     // data
     const entry={id:uid(),name:v.name,cat:v.reward?null:v.cat,ts:tsNow(),date:TODAY,src:v.type||'once',cd:v.kind==='tpl'?v.ws:(v.created||v.start||TODAY)};
     if(v.kind==='tpl') entry.tid=v.id;
+    if(v.remark) entry.rk=v.remark;
     D.log.push(entry);
     if(v.kind==='task') D.tasks=D.tasks.filter(t=>t.id!==v.id);
     gardenCare(1); gardenAccel(4);
@@ -382,32 +433,40 @@ function flowActions(f){
     save(); closeMini(); renderTasks(); toast('已红冲一步，记录同步删除');
   });
   mini.querySelector('[data-a="drop"]').addEventListener('click',()=>{
-    if(!confirm('放弃这个流程？已完成的步骤仍算完成，不记废弃')) return;
+    if(!confirm('放弃这个流程？已完成的步骤仍算完成，流程会记进废弃清单')) return;
     D.flows.inst=D.flows.inst.filter(x=>x.id!==f.id);
+    D.disc.push({name:f.n+(f.note?'（'+f.note+'）':''),cat:f.cat,date:TODAY,m:1});
     save(); closeMini(); renderTasks(); toast('已放弃 · 走过的路都算数');
   });
 }
 function taskActions(v){
+  const rkBtn=`<button class="act" data-a="rk">${v.remark?'改备注':'写备注'}</button>
+        <button class="act" data-a="tm">存成模板</button>`;
   let h=`<h5>${esc(v.name)}</h5>`;
   if(v.kind==='tpl'){
     h+=`<button class="act" data-a="skip">今天跳过（之后照常出现）</button>
         <button class="act" data-a="off">停用此循环任务</button>
+        ${rkBtn}
         <button class="act danger" data-a="delTpl">删除</button>`;
   } else if(v.type==='span'){
     h+=`<label>修改截止日期（提前延后都可以）</label>
         <input type="date" id="endInput" value="${v.end}" min="${v.start}">
         <button class="act" data-a="saveEnd">保存新截止日期</button>
-        <button class="act danger" data-a="delTask">删除任务</button>`;
+        ${rkBtn}
+        <button class="act danger" data-a="delTask">删除任务（会记进废弃清单）</button>`;
   } else {
-    h+=`<button class="act danger" data-a="delTask">删除任务（不计入废弃）</button>`;
+    h+=`${rkBtn}
+        <button class="act danger" data-a="delTask">删除任务（会记进废弃清单）</button>`;
   }
   openMini(h);
   mini.querySelectorAll('.act').forEach(b=>b.addEventListener('click',()=>{
     const a=b.dataset.a;
+    if(a==='rk'){ editTaskRemark(v); return; }
     if(a==='skip'){ const p=D.tpl.find(x=>x.id===v.id); if(p){p.skip=TODAY; toast('今天跳过，明天照常出现');} }
     else if(a==='off'){ const p=D.tpl.find(x=>x.id===v.id); if(p){p.active=false; toast('已停用，可在设置里重新启用');} }
+    else if(a==='tm'){ saveAsTmpl(v); }
     else if(a==='delTpl'){ if(!confirm('删除这个循环任务？')) return; D.tpl=D.tpl.filter(x=>x.id!==v.id); toast('已删除'); }
-    else if(a==='delTask'){ if(!confirm(`删除任务「${v.name}」？`)) return; D.tasks=D.tasks.filter(t=>t.id!==v.id); toast('已删除'); }
+    else if(a==='delTask'){ if(!confirm(`删除任务「${v.name}」？会记进废弃清单`)) return; D.tasks=D.tasks.filter(t=>t.id!==v.id); D.disc.push({name:v.name,cat:v.cat,date:TODAY,m:1}); toast('已删除，记到废弃清单了'); }
     else if(a==='saveEnd'){
       const ne=$('#endInput').value;
       if(!ne || ne<v.start){ toast('日期不能早于开始日'); return; }
@@ -416,6 +475,39 @@ function taskActions(v){
     }
     closeMini(); save(); renderTasks();
   }));
+}
+function editTaskRemark(v){
+  const o=v.kind==='tpl'?D.tpl.find(x=>x.id===v.id):D.tasks.find(x=>x.id===v.id);
+  if(!o) return;
+  openMini(`<h5>${esc(o.name)}</h5>
+    <input id="taskRk" class="edin" style="background:var(--bg);margin-bottom:10px" placeholder="备注一下（可留空）" maxlength="120" value="${esc(o.remark||'')}">
+    <button class="act" data-a="sv" style="background:var(--sage);color:#FBFBF6;text-align:center">${o.remark?'更新备注':'添加备注'}</button>
+    ${o.remark?'<button class="act" data-a="rm">清除备注</button>':''}`);
+  mini.querySelector('[data-a="sv"]').addEventListener('click',()=>{
+    const r=$('#taskRk').value.trim();
+    if(r) o.remark=r; else delete o.remark;
+    save(); closeMini(); renderTasks(); toast(r?'备注已记下':'备注已清除');
+  });
+  const rm=mini.querySelector('[data-a="rm"]');
+  if(rm) rm.addEventListener('click',()=>{
+    delete o.remark;
+    save(); closeMini(); renderTasks(); toast('备注已清除');
+  });
+}
+function saveAsTmpl(v){
+  const o=v.kind==='tpl'?D.tpl.find(x=>x.id===v.id):D.tasks.find(x=>x.id===v.id);
+  if(!o) return;
+  const m={id:uid(),name:o.name,cat:o.cat,tt:v.kind==='tpl'?(o.tt||'once'):o.type,rec:null};
+  if(v.kind==='tpl'){
+    m.rec={freq:o.freq||'daily'};
+    if(o.freq==='every') m.rec.n=o.n;
+    if(o.freq==='weekly') m.rec.wd=o.wd;
+    if(o.freq==='monthly') m.rec.md=o.md;
+    if(m.tt==='span') m.len=o.len||1;
+  } else if(o.type==='span') m.len=diffDays(o.start,o.end)+1;
+  if(o.remark) m.remark=o.remark;
+  D.ttmpl.push(m);
+  toast(`已存成模板「${o.name}」· 新建任务时可一键套用`);
 }
 /* ---- re-categorize / undo a completed record ---- */
 function changeCat(logId,after){
@@ -432,16 +524,16 @@ function changeCat(logId,after){
     D.log=D.log.filter(x=>x.id!==logId);
     D.rw.life=Math.max(0,D.rw.life-1);
     D.rw.counter=Math.max(0,D.rw.counter-1);
-    if(l.src==='once') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'once',date:TODAY,created:l.cd||TODAY});
-    else if(l.src==='span') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'span',start:(l.cd&&l.cd<=TODAY)?l.cd:TODAY,end:TODAY,created:l.cd||TODAY});
-    else if(l.src==='idle') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'idle',created:l.cd||TODAY});
+    if(l.src==='once') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'once',date:TODAY,created:l.cd||TODAY,...(l.rk?{remark:l.rk}:{})});
+    else if(l.src==='span') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'span',start:(l.cd&&l.cd<=TODAY)?l.cd:TODAY,end:TODAY,created:l.cd||TODAY,...(l.rk?{remark:l.rk}:{})});
+    else if(l.src==='idle') D.tasks.push({id:uid(),name:l.name,cat:l.cat,type:'idle',created:l.cd||TODAY,...(l.rk?{remark:l.rk}:{})});
     /* 循环任务：删掉记录后会自动回到今天的列表 */
     save(); closeMini(); toast('已撤销，它回到任务列表了'); if(after) after();
   });
 }
 
 /* ---- new task sheet ---- */
-let sheetType='once', sheetCat='work', sheetFreq='daily', sheetWd=1, sheetTmpl=null, sheetVar=0;
+let sheetType='once', sheetCat='work', sheetFreq='daily', sheetWd=1, sheetTmpl=null, sheetVar=0, sheetMode='one';
 function renderFlowChoices(){
   const box=$('#tFlowTmpls');
   if(!D.flows.tmpl.length){
@@ -471,14 +563,38 @@ function renderFlowChoices(){
   }
 }
 function openSheet(){
-  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1; sheetTmpl=null; sheetVar=0;
-  $('#tName').value=''; $('#tFlowNote').value=''; $('#tDate').value=TODAY;
+  sheetType='once'; sheetCat=(D.cats[0]||{id:'work'}).id; sheetFreq='daily'; sheetWd=1; sheetTmpl=null; sheetVar=0; sheetMode='one';
+  $('#tName').value=''; $('#tRemark').value=''; $('#tFlowNote').value=''; $('#tDate').value=TODAY;
   $('#tStart').value=TODAY; $('#tEnd').value=addDays(TODAY,29);
-  $('#tN').value=3; $('#tMd').value=Math.min(28,+TODAY.slice(8,10));
+  $('#tN').value=3; $('#tMd').value=Math.min(28,+TODAY.slice(8,10)); $('#tLen').value=7;
   $$('#tTypePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.t==='once'));
+  $$('#tModePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.m==='one'));
   $$('#freqPills .pill').forEach(p=>p.classList.toggle('on',p.dataset.f==='daily'));
-  syncSheetType(); renderSheetCats(); renderWdChips();
+  renderSheetTmpls(); syncSheetType(); renderSheetCats(); renderWdChips();
   $('#sheet').classList.add('on'); $('#sheetScrim').classList.add('on');
+}
+function renderSheetTmpls(){
+  if(!D.ttmpl.length) return;
+  $('#tTmplChips').innerHTML=D.ttmpl.map(m=>`<button class="chip" data-tm="${m.id}">${esc(m.name)}</button>`).join('');
+  $$('#tTmplChips .chip').forEach(c=>c.addEventListener('click',()=>applyTaskTmpl(c.dataset.tm)));
+}
+function applyTaskTmpl(id){
+  const m=D.ttmpl.find(x=>x.id===id); if(!m) return;
+  sheetType=m.tt||'once'; sheetMode=m.rec?'rec':'one';
+  $$('#tTypePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.t===sheetType));
+  $$('#tModePills .pill').forEach(p=>p.classList.toggle('on',p.dataset.m===sheetMode));
+  $('#tName').value=m.name; $('#tRemark').value=m.remark||'';
+  if(D.cats.find(c=>c.id===m.cat)){ sheetCat=m.cat; renderSheetCats(); }
+  if(m.rec){
+    sheetFreq=m.rec.freq||'daily';
+    $$('#freqPills .pill').forEach(p=>p.classList.toggle('on',p.dataset.f===sheetFreq));
+    if(m.rec.n) $('#tN').value=m.rec.n;
+    if(m.rec.wd!==undefined){ sheetWd=m.rec.wd; renderWdChips(); }
+    if(m.rec.md) $('#tMd').value=m.rec.md;
+    if(m.len) $('#tLen').value=m.len;
+  } else if(m.tt==='span'){ $('#tStart').value=TODAY; $('#tEnd').value=addDays(TODAY,Math.max(1,m.len||1)-1); }
+  syncSheetType();
+  toast('已按模板填好，可以再改');
 }
 function renderWdChips(){
   const days=[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']];
@@ -501,13 +617,22 @@ $$('#tTypePills .pill').forEach(p=>p.addEventListener('click',()=>{
   $$('#tTypePills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on');
   sheetType=p.dataset.t; syncSheetType();
 }));
+$$('#tModePills .pill').forEach(p=>p.addEventListener('click',()=>{
+  $$('#tModePills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on');
+  sheetMode=p.dataset.m; syncSheetType();
+}));
 function syncSheetType(){
-  $('#tDateWrap').style.display=sheetType==='once'?'':'none';
-  $('#tSpanWrap').style.display=sheetType==='span'?'':'none';
-  $('#tFreqWrap').style.display=sheetType==='daily'?'':'none';
+  const rec=sheetMode==='rec'&&sheetType!=='flow';
+  $('#tDateWrap').style.display=(sheetType==='once'&&!rec)?'':'none';
+  $('#tSpanWrap').style.display=(sheetType==='span'&&!rec)?'':'none';
+  $('#tLenWrap').style.display=(sheetType==='span'&&rec)?'':'none';
+  $('#tFreqWrap').style.display=rec?'':'none';
+  $('#tModeWrap').style.display=sheetType==='flow'?'none':'';
+  $('#tTmplWrap').style.display=(sheetType!=='flow'&&D.ttmpl.length)?'':'none';
   $('#idleNote').style.display=sheetType==='idle'?'block':'none';
   $('#tFlowWrap').style.display=sheetType==='flow'?'':'none';
   $('#tNameWrap').style.display=sheetType==='flow'?'none':'';
+  $('#tRemarkWrap').style.display=sheetType==='flow'?'none':'';
   $('#tCats').parentElement&&($('#tCats').style.display=sheetType==='flow'?'none':'');
   const catLabel=$('#tCats').previousElementSibling;
   if(catLabel) catLabel.style.display=sheetType==='flow'?'none':'';
@@ -535,24 +660,39 @@ $('#tSave').addEventListener('click',()=>{
   }
   const name=$('#tName').value.trim();
   if(!name){ toast('给任务起个名字吧'); return; }
-  if(sheetType==='daily'){
-    const p={id:uid(),name,cat:sheetCat,active:true,skip:null,freq:sheetFreq,created:TODAY};
+  const remark=$('#tRemark').value.trim();
+  if(sheetMode==='rec'){
+    if(sheetType==='span'&&sheetFreq==='daily'){ toast('每天都循环的话就没法跨天啦，换个频率吧'); return; }
+    const p={id:uid(),name,cat:sheetCat,active:true,skip:null,freq:sheetFreq,created:TODAY,tt:sheetType};
     if(sheetFreq==='every') p.n=Math.min(365,Math.max(2,parseInt($('#tN').value)||3));
     if(sheetFreq==='weekly') p.wd=sheetWd;
     if(sheetFreq==='monthly') p.md=Math.min(31,Math.max(1,parseInt($('#tMd').value)||1));
+    if(remark) p.remark=remark;
+    if(sheetType==='span'){
+      const cap=sheetFreq==='every'?p.n:sheetFreq==='weekly'?7:28;
+      p.len=Math.min(cap,Math.max(1,parseInt($('#tLen').value)||7));
+      p.ldw=tplWindow(p);
+    }
     D.tpl.push(p);
-    toast('循环任务已创建 · '+tplFreqLabel(p));
+    if(sheetType==='span'&&p.ldw&&addDays(p.ldw,p.len-1)<TODAY) toast('这一轮已经过啦，下个窗口自动挂上');
+    else toast('循环任务已创建 · '+tplFreqLabel(p)+(sheetType==='span'?' · 跨'+p.len+'天':sheetType==='idle'?' · 长期':''));
   } else if(sheetType==='span'){
     const s=$('#tStart').value, e=$('#tEnd').value;
     if(!s||!e||e<s){ toast('检查一下起止日期～'); return; }
-    D.tasks.push({id:uid(),name,cat:sheetCat,type:'span',start:s,end:e,created:TODAY});
+    const t={id:uid(),name,cat:sheetCat,type:'span',start:s,end:e,created:TODAY};
+    if(remark) t.remark=remark;
+    D.tasks.push(t);
     toast('跨时段任务已创建');
   } else if(sheetType==='idle'){
-    D.tasks.push({id:uid(),name,cat:sheetCat,type:'idle',created:TODAY});
+    const t={id:uid(),name,cat:sheetCat,type:'idle',created:TODAY};
+    if(remark) t.remark=remark;
+    D.tasks.push(t);
     toast('长期任务已创建，不催你');
   } else {
     const dt=$('#tDate').value||TODAY;
-    D.tasks.push({id:uid(),name,cat:sheetCat,type:'once',date:dt,created:TODAY});
+    const t={id:uid(),name,cat:sheetCat,type:'once',date:dt,created:TODAY};
+    if(remark) t.remark=remark;
+    D.tasks.push(t);
     toast(dt>TODAY?`预制成功，${fmtMD(dt)}见`:'任务已创建');
   }
   save(); closeSheet(); renderTasks();

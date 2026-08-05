@@ -24,6 +24,41 @@ function svgFx(st,scar,hex){
   if(st===4) return svgPot()+'<path d="M50 76V60q0-5-6-7" '+G+' opacity=".55"/><path d="M44 53q-6-1-8-5 5-1 8 3" fill="var(--sage)" opacity=".4"/><circle cx="56" cy="70" r="2" fill="var(--apricot-ink)"/><path d="M60 64q4 2 8 1" stroke="var(--faint)" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
   return '';
 }
+/* 荆芥（猫薄荷）专属剪影：穗状小花 + 锯齿叶，六阶段与 svgFx 同一套约定（st3/st4 不吃 hex） */
+function svgJj(st,scar,hex){
+  const G='stroke="var(--sage)" stroke-width="2.2" fill="none" stroke-linecap="round"';
+  const T='stroke="var(--sage)" stroke-width="1.3" fill="none" stroke-linecap="round"';
+  const fc=hex||'var(--p2)';
+  if(st===0) return svgPot()+'<path d="M42 74q8-4 16 0" '+G+' opacity=".5"/><ellipse cx="47.5" cy="71.5" rx="2" ry="1.5" fill="var(--apricot-ink)" transform="rotate(-15 47.5 71.5)"/><ellipse cx="53" cy="72.2" rx="1.8" ry="1.4" fill="var(--apricot-ink)" transform="rotate(18 53 72.2)"/><path d="M41 63l-2-3M37 67l-3-1" stroke="var(--faint)" stroke-width="1.4" stroke-linecap="round"/>';
+  if(st===1) return svgPot()+'<path d="M50 76V56" '+G+'/>'+
+    '<path d="M50 61q-7 1.5-10.5-4.5 6.5-2.5 10.5 1.5" fill="var(--sage)" opacity=".85"/><path d="M45 61.8l-1.1 2M41.8 60l-1.5 1.7" '+T+'/>'+
+    '<path d="M50 56.5q7 1.5 10.5-4.5-6.5-2.5-10.5 1.5" fill="var(--sage)" opacity=".85"/><path d="M55 57.3l1.1 2M58.2 55.5l1.5 1.7" '+T+'/>';
+  if(st===5) return svgPot()+'<path d="M50 76V33" '+G+'/>'+
+    '<path d="M50 64q-8 1.5-11.5-5 7-2.5 11.5 2" fill="var(--sage)" opacity=".85"/><path d="M44.5 64.9l-1.2 2M41 62.8l-1.6 1.7" '+T+'/>'+
+    '<path d="M50 56q8 1.5 11.5-5-7-2.5-11.5 2" fill="var(--sage)" opacity=".85"/><path d="M55.5 56.9l1.2 2M59 54.8l1.6 1.7" '+T+'/>'+
+    '<g fill="var(--sage)" opacity=".9"><ellipse cx="47.6" cy="44" rx="1.7" ry="2.3" transform="rotate(-18 47.6 44)"/><ellipse cx="52.4" cy="44" rx="1.7" ry="2.3" transform="rotate(18 52.4 44)"/><ellipse cx="47.9" cy="39.6" rx="1.6" ry="2.2" transform="rotate(-15 47.9 39.6)"/><ellipse cx="52.1" cy="39.6" rx="1.6" ry="2.2" transform="rotate(15 52.1 39.6)"/><ellipse cx="48.3" cy="35.6" rx="1.5" ry="2" transform="rotate(-12 48.3 35.6)"/><ellipse cx="51.7" cy="35.6" rx="1.5" ry="2" transform="rotate(12 51.7 35.6)"/><ellipse cx="50" cy="31.6" rx="1.6" ry="2.4"/></g>';
+  if(st===2){
+    const scarMark=scar?'<path d="M41 62.5l5 3.4" stroke="var(--apricot-ink)" stroke-width="1.6" stroke-linecap="round"/>':'';
+    return svgPot()+'<path d="M50 76V27" '+G+'/>'+
+    '<path d="M50 50q-7-1.5-10-7M50 47q7-1.5 10-7" stroke="var(--sage)" stroke-width="1.8" fill="none" stroke-linecap="round"/>'+
+    '<path d="M50 65q-8.5 1.5-12-5.5 7.5-2.5 12 2" fill="var(--sage)" opacity=".85"/><path d="M44 65.9l-1.3 2M40.4 63.6l-1.7 1.7" '+T+'/>'+
+    '<path d="M50 57.5q8.5 1.5 12-5.5-7.5-2.5-12 2" fill="var(--sage)" opacity=".85"/><path d="M56 58.4l1.3 2M59.6 56.1l1.7 1.7" '+T+'/>'+
+    '<g fill="'+fc+'" stroke="none"><circle cx="46.8" cy="44" r="2.4"/><circle cx="53.2" cy="44" r="2.4"/><circle cx="46.5" cy="39.4" r="2.5"/><circle cx="53.5" cy="39.4" r="2.5"/><circle cx="47" cy="34.8" r="2.4"/><circle cx="53" cy="34.8" r="2.4"/><circle cx="48" cy="30.6" r="2.2"/><circle cx="52" cy="30.6" r="2.2"/><circle cx="50" cy="26.4" r="2.5"/><circle cx="50" cy="22.8" r="1.3"/><circle cx="39.7" cy="41.6" r="2.1"/><circle cx="43.4" cy="46.6" r="1.7"/><circle cx="60.3" cy="38.6" r="2.1"/><circle cx="56.6" cy="43.6" r="1.7"/></g>'+scarMark;
+  }
+  if(st===3) return svgPot()+'<path d="M50 76V38q0-5 4-7" '+G+'/>'+
+    '<path d="M50 62q-8-2-11-8 8-2 11 5" fill="var(--sage)" opacity=".6"/><path d="M44.5 62.4l-1.2 1.8" stroke="var(--sage)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".6"/>'+
+    '<g fill="var(--apricot-ink)"><ellipse cx="48.4" cy="44" rx="1.8" ry="2.4" transform="rotate(-20 48.4 44)"/><ellipse cx="52.8" cy="43.2" rx="1.8" ry="2.4" transform="rotate(14 52.8 43.2)"/><ellipse cx="49.4" cy="39.2" rx="1.7" ry="2.3" transform="rotate(-16 49.4 39.2)"/><ellipse cx="54" cy="38.2" rx="1.7" ry="2.3" transform="rotate(16 54 38.2)"/><ellipse cx="50.8" cy="34.6" rx="1.6" ry="2.2" transform="rotate(-10 50.8 34.6)"/><ellipse cx="55.2" cy="33.6" rx="1.6" ry="2.2" transform="rotate(18 55.2 33.6)"/><ellipse cx="54.6" cy="29.4" rx="1.7" ry="2.3" transform="rotate(8 54.6 29.4)"/></g>'+
+    '<circle cx="63" cy="49" r="1.5" fill="var(--apricot-ink)"/><circle cx="42.5" cy="48" r="1.3" fill="var(--apricot-ink)"/>';
+  if(st===4) return svgPot()+'<path d="M50 76V60q0-6 6-7.5" '+G+' opacity=".55"/>'+
+    '<path d="M56 52.5q4 .5 4.5 5.5" stroke="var(--sage)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".5"/>'+
+    '<circle cx="58.8" cy="54.6" r="1.5" fill="var(--apricot-ink)" opacity=".85"/><circle cx="60.3" cy="57.6" r="1.4" fill="var(--apricot-ink)" opacity=".85"/><circle cx="60.8" cy="60.8" r="1.3" fill="var(--apricot-ink)" opacity=".85"/>'+
+    '<path d="M50 66q-6-1-8-5 5-1 8 3" fill="var(--sage)" opacity=".4"/><path d="M45 66.6l-1.1 1.6" stroke="var(--sage)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".4"/>'+
+    '<circle cx="43.5" cy="71.5" r="1.7" fill="var(--apricot-ink)"/>'+
+    '<path d="M62 68q4 2 8 1" stroke="var(--faint)" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+  return '';
+}
+/* 剪影分发器：按品种基键选专属画法，认不出的兜底凤仙花 */
+function spSvg(k,st,scar,hex){ const f={fx:svgFx,jj:svgJj}[spBase(k)]||svgFx; return f(st,scar,hex); }
 function svgVaseBody(vid){
   if(vid==='v2') return '<path d="M44 40q-14 6-14 22 0 16 20 16t20-16q0-16-14-22l-1-8H45z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/>';
   if(vid==='v3') return '<path d="M36 44q-6 4-6 16 0 18 20 18t20-18q0-12-6-16l2-6H34z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/>';
@@ -161,7 +196,7 @@ function renderGardenMain(){
   g.plots.forEach((p,i)=>{
     if(!p){ h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+svgPot()+'</svg></div><div class="pn">　</div></div>'; return; }
     const s=plotState(p);
-    h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+svgFx(s.st,p.fz===1,spHex(p.sp))+'</svg></div><div class="pn">'+spName(p.sp)+'</div></div>';
+    h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+spSvg(p.sp,s.st,p.fz===1,spHex(p.sp))+'</svg></div><div class="pn">'+spName(p.sp)+'</div></div>';
   });
   h+='</div>';
   h+='<div class="gbtns"><button class="gbtn" data-gn="arr">插花<small>ARRANGE</small></button><button class="gbtn" data-gn="store">仓库<small>STORAGE</small></button><button class="gbtn" data-gn="shop">商店<small>SHOP</small></button></div>';
@@ -458,9 +493,8 @@ function renderGardenBook(){
   Object.keys(SPECIES).forEach(k=>{
     const sp=SPECIES[k], bk=g.book[k], lit=bk&&bk.bl>0;
     const defHex=sp.colors?sp.colors[Object.keys(sp.colors)[0]].hex:null;
-    h+='<div class="bookcell'+(lit?'':' dim2')+'" data-bk="'+k+'"><svg viewBox="0 0 100 100">'+svgFx(2,false,defHex)+'</svg><div class="bn">'+sp.n+'</div></div>';
+    h+='<div class="bookcell'+(lit?'':' dim2')+'" data-bk="'+k+'"><svg viewBox="0 0 100 100">'+spSvg(k,2,false,defHex)+'</svg><div class="bn">'+sp.n+'</div></div>';
   });
-  h+='<div class="bookcell dim2"><svg viewBox="0 0 100 100"><text x="50" y="58" text-anchor="middle" font-size="30" fill="var(--faint)">?</text></svg><div class="bn">等妈咪寄种子</div></div>';
   h+='<div class="bookcell dim2"><svg viewBox="0 0 100 100"><text x="50" y="58" text-anchor="middle" font-size="30" fill="var(--faint)">?</text></svg><div class="bn">慢慢来</div></div>';
   h+='</div><p class="gfoot2">图鉴记的不是收集，是你和每种花处出来的交情</p>';
   document.querySelector('#gBody').innerHTML=h;
@@ -468,7 +502,7 @@ function renderGardenBook(){
     const k=el.dataset.bk, sp=SPECIES[k], bk=g.book[k]||{pl:0,bl:0,sd:0,sc:0,ee:0,first:null};
     const defHex2=sp.colors?sp.colors[Object.keys(sp.colors)[0]].hex:null;
     openMini('<h5>'+sp.n+'（'+sp.a+'）</h5>'+
-      '<div style="max-width:150px;margin:0 auto 6px"><svg viewBox="0 0 100 100">'+svgFx(2,false,defHex2)+'</svg></div>'+
+      '<div style="max-width:150px;margin:0 auto 6px"><svg viewBox="0 0 100 100">'+spSvg(k,2,false,defHex2)+'</svg></div>'+
       '<div class="bstat"><span>种植</span><span class="v2">'+bk.pl+' 次</span></div>'+
       '<div class="bstat"><span>开花</span><span class="v2">'+bk.bl+' 次</span></div>'+
       '<div class="bstat"><span>收籽</span><span class="v2">'+bk.sd+' 颗</span></div>'+

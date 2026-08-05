@@ -6,7 +6,10 @@
 const SPECIES={
   fx:{n:'凤仙花',a:'毛桃',seed:10,sell:6,gt:72,wkLim:2,
       lang:'果荚一碰就炸，把攒了一夏天的种子弹得到处都是——设防的壳里，全是想给出去的心。',
-      colors:{mr:{n:'玫红',hex:'#C25E9B'},dz:{n:'淡紫',hex:'#9B7EC8'},cb:{n:'纯白',hex:'#F0E8DC'},sf:{n:'水粉',hex:'#E8A0B8'},qv:{n:'浅绿',hex:'#7BC8A4'},th:{n:'桃红',hex:'#E06878'}}}
+      colors:{mr:{n:'玫红',hex:'#C25E9B'},dz:{n:'淡紫',hex:'#9B7EC8'},cb:{n:'纯白',hex:'#F0E8DC'},sf:{n:'水粉',hex:'#E8A0B8'},qv:{n:'浅绿',hex:'#7BC8A4'},th:{n:'桃红',hex:'#E06878'}}},
+  jj:{n:'荆芥',a:'猫薄荷',seed:8,sell:5,gt:48,wkLim:2,
+      lang:'凑过来，快乐就晕开了',
+      colors:{xq:{n:'雪青',hex:'#B3A6D6'},yb:{n:'月白',hex:'#E4EAF6'}}}
 };
 /* 颜色系统工具函数（v2.5.8）——品种+颜色组合键：fx_mr, fx_dz 等；无颜色品种直接用键名 */
 function spOf(k){if(SPECIES[k])return SPECIES[k];const i=k.lastIndexOf('_');return i>0?SPECIES[k.substring(0,i)]||null:null;}
