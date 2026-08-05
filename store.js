@@ -86,7 +86,8 @@ if(!D.g) D.g={
   book:{}, hist:[], care:{}, gifts:[],
   visits:{n:0,last:null},
   own:['v1'],
-  wk:{k:'',b:{}}
+  wk:{k:'',b:{}},
+  deco:{}                    /* v2.9 装饰抽屉：own 标记与小状态 {fox:1,sign:{t:''},vskin:'vmilk',pskin:'psq',lampNote:''} */
 };
 if(D.g.v===1){ /* 开发期状态升级 */
   D.g.v=2; D.g.fridge=null; D.g.bottles={};
@@ -115,6 +116,8 @@ if(D.g && !D.g.ev){
 }
 /* v2.8 migration: 任务模板 */
 if(!D.ttmpl) D.ttmpl=[];
+/* v2.9 migration: 花园装饰抽屉（老数据零迁移风险：没有就给个空的） */
+if(D.g&&D.g.deco===undefined) D.g.deco={};
 function save(silent){
   if(!silent) D._ts=Date.now();
   try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); }

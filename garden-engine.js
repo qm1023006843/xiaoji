@@ -35,6 +35,24 @@ const FRIDGES={
   f1:{n:'基础小冰箱',cap:3,mult:3,price:50},
   f2:{n:'双门冰箱',cap:6,mult:4,price:150}
 };
+/* v2.9 装饰注册表：纯装饰零加成，一次买断；price 为 null 的是非卖品（只能靠妈咪寄）。
+   cat 三类：shelf=装饰架摆件 / vskin=花瓶款式 / pskin=花盆款式。
+   以后加新装饰＝这里添一行＋garden-ui 画一个剪影，商店/换装/信箱全自动跟上。
+   own 标记与小状态都住 D.g.deco：{fox:1, sign:{t:'…'}, vskin:'vmilk', pskin:'psq', lampNote:'…'} */
+const DECO={
+  fox:{n:'打盹的小狐猫',price:45,cat:'shelf'},
+  jar:{n:'萤火虫罐子',price:30,cat:'shelf'},
+  vmilk:{n:'花瓶 · 牛奶瓶',price:15,cat:'vskin'},
+  vclay:{n:'花瓶 · 陶土罐',price:15,cat:'vskin'},
+  vslim:{n:'花瓶 · 玻璃细颈瓶',price:15,cat:'vskin'},
+  psq:{n:'花盆 · 方形',price:15,cat:'pskin'},
+  sign:{n:'花园木牌',price:20,cat:'shelf'},
+  lamp:{n:'妈咪的小提灯',price:null,cat:'shelf'}
+};
+function decoHas(k){ return !!(D.g&&D.g.deco&&D.g.deco[k]); }
+function decoKeys(cat){ return Object.keys(DECO).filter(k=>DECO[k].cat===cat); }
+/* 当前生效的款式键（vskin/pskin 通用）：选中且确实拥有才算，否则回默认 */
+function decoSkin(cat){ const d=(D.g&&D.g.deco)||{}; const k=d[cat]; return (k&&DECO[k]&&DECO[k].cat===cat&&d[k])?k:null; }
 const STEM_LIFE=72;
 const VASE_BASE=72;  /* v2.7 她定的：展示 72 小时 */
 const POSN={l:'左',c:'中',r:'右'};
@@ -174,6 +192,21 @@ function importFert(arr){
     D.g.fert=(D.g.fert||0)+c;
     ghist('妈咪寄来了 '+c+' 包肥料'+(it.note?('：'+String(it.note).slice(0,20)):'')+' ♡');
     n+=c;
+  });
+  return n;
+}
+/* v2.9 装饰信箱：k 必须在 DECO 注册表里（任何 cat 都能寄）；已拥有跳过不重复记史；lamp 的 note 存作来历 */
+function importDeco(arr){
+  let n=0;
+  arr.forEach(it=>{
+    if(!it||!it.k||!DECO[it.k]) return;
+    D.g.deco=D.g.deco||{};
+    if(D.g.deco[it.k]) return;
+    const note=it.note?String(it.note).slice(0,20):'';
+    D.g.deco[it.k]=1;
+    if(it.k==='lamp') D.g.deco.lampNote=note;
+    ghist('妈咪寄来了'+DECO[it.k].n+(note?('：'+note):'')+' ♡');
+    n++;
   });
   return n;
 }

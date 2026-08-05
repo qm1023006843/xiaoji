@@ -79,7 +79,7 @@ function importNotes(arr){
 }
 async function cloudInbox(){
   let got=0;
-  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords],['inbox/notes.json',importNotes],['inbox/seeds.json',importSeeds],['inbox/fert.json',importFert]]){
+  for(const [path,fn] of [['inbox/tasks.json',importTasks],['inbox/words.json',importWords],['inbox/notes.json',importNotes],['inbox/seeds.json',importSeeds],['inbox/fert.json',importFert],['inbox/deco.json',importDeco]]){
     try{
       const f=await ghGet(path);
       if(f.missing) continue;
@@ -91,7 +91,7 @@ async function cloudInbox(){
       }
     }catch(e){ /* 信箱冲突或断网：下次再取，不弄丢 */ }
   }
-  if(got){ save(); toast('妈咪从云端放了 '+got+' 样东西进来 ♡'); if(cur==='scr-tasks') renderTasks(); if(cur==='scr-words') renderWords(); if(cur==='scr-notes') renderNotes(); }
+  if(got){ save(); toast('妈咪从云端放了 '+got+' 样东西进来 ♡'); if(cur==='scr-tasks') renderTasks(); if(cur==='scr-words') renderWords(); if(cur==='scr-notes') renderNotes(); if(cur==='scr-garden') renderGardenTab(); }
 }
 async function cloudHerMeta(){
   try{
