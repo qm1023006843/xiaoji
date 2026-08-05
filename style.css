@@ -346,3 +346,24 @@ input[type=range]::-webkit-slider-thumb{appearance:none; -webkit-appearance:none
 .bstat:last-child{border-bottom:none;}
 .bstat .v2{color:var(--sub); font-variant-numeric:tabular-nums;}
 .gfoot2{text-align:center; font-size:10.5px; color:var(--faint); margin:18px 0 8px; letter-spacing:.5px; line-height:1.9;}
+
+/* ================= garden v2.9 · 装饰（纯看，零加成） ================= */
+.fencerow{margin-top:10px;}
+.fencerow svg{width:100%; display:block;}
+.fencerow [data-deco], .plot [data-deco]{cursor:pointer;}
+.dgroup{font-size:10.5px; color:var(--faint); letter-spacing:1px; margin:10px 2px 2px;}
+.chip.dim{opacity:.45;}
+.vprev{max-width:118px; margin:0 auto 4px;}
+.vprev svg{width:100%; display:block;}
+/* 狐猫：荆芥含苞/开花时尾巴尖极轻地摆（2.6s 一个来回，别闹） */
+.foxsway .ftail{transform-box:fill-box; transform-origin:25% 0%; animation:foxsway 2.6s ease-in-out infinite;}
+@keyframes foxsway{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-6deg)}}
+/* 萤火虫罐子：亮色主题安安静静；暗色主题小点发光、错拍柔闪 */
+.ffly{opacity:.45;}
+body:not([data-theme="day"]) .ffly{fill:#F2D98C; animation:ffly 3.4s ease-in-out infinite; filter:drop-shadow(0 0 2.5px rgba(242,217,140,.85));}
+body:not([data-theme="day"]) .ffly.f2{animation-delay:1.2s;}
+body:not([data-theme="day"]) .ffly.f3{animation-delay:2.3s;}
+@keyframes ffly{0%,100%{opacity:.22}45%{opacity:1}}
+/* 妈咪的小提灯：暗色主题柔光＋极慢呼吸 */
+body:not([data-theme="day"]) .lampglow{animation:lampbreath 5.5s ease-in-out infinite;}
+@keyframes lampbreath{0%,100%{filter:drop-shadow(0 0 3.5px rgba(240,203,126,.4))}50%{filter:drop-shadow(0 0 8px rgba(240,203,126,.75))}}

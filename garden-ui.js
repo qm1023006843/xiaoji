@@ -1,6 +1,10 @@
 /* 小记 v2.7.0 · garden-ui：花园界面（剪影/花瓶/拖拽/商店/图鉴/妈咪的花园） */
 'use strict';
-function svgPot(){ return '<path d="M32 76h36l-4 15H36z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/><ellipse cx="50" cy="76" rx="19" ry="3.5" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/>'; }
+function svgPotDef(){ return '<path d="M32 76h36l-4 15H36z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/><ellipse cx="50" cy="76" rx="19" ry="3.5" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/>'; }
+/* v2.9 花盆款式 · 方形：沿口略宽、身子方正（配色变量照旧） */
+function svgPotSq(){ return '<path d="M34.5 77.5h31l-1.4 13.5H35.9z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/><rect x="30.5" y="72.5" width="39" height="5" rx="1.5" fill="var(--card2)" stroke="var(--line)" stroke-width="1.5"/>'; }
+/* 花盆分发器（照 spSvg 的思路）：按 D.g.deco.pskin 选款式，全园一起换；认不出的兜底默认款 */
+function svgPot(){ const f={psq:svgPotSq}[decoSkin('pskin')]||svgPotDef; return f(); }
 function svgFx(st,scar,hex){
   const G='stroke="var(--sage)" stroke-width="2.2" fill="none" stroke-linecap="round"';
   const fc=hex||'var(--p2)';
@@ -60,6 +64,11 @@ function svgJj(st,scar,hex){
 /* 剪影分发器：按品种基键选专属画法，认不出的兜底凤仙花 */
 function spSvg(k,st,scar,hex){ const f={fx:svgFx,jj:svgJj}[spBase(k)]||svgFx; return f(st,scar,hex); }
 function svgVaseBody(vid){
+  /* v2.9 花瓶换装：买断的款式换瓶身，花枝画法不动；没选（或没拥有）就按 vid 画默认款 */
+  const sk=decoSkin('vskin');
+  if(sk==='vmilk') return '<path d="M46 30v7q-13 5-13 20 0 21 17 21t17-21q0-15-13-20v-7z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/><path d="M46.5 34h7" stroke="var(--line)" stroke-width="1" opacity=".7"/>';
+  if(sk==='vclay') return '<path d="M35 42q-9 4-9 15 0 21 24 21t24-21q0-11-9-15l3-5H32z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/><path d="M28.5 61q21.5 5.5 43 0" stroke="var(--line)" stroke-width="1.2" fill="none" opacity=".8"/>';
+  if(sk==='vslim') return '<path d="M47 28v26q-11 3-11 13 0 11 14 11t14-11q0-10-11-13V28z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/><path d="M45.6 28h8.8" stroke="var(--line)" stroke-width="1.5" stroke-linecap="round"/>';
   if(vid==='v2') return '<path d="M44 40q-14 6-14 22 0 16 20 16t20-16q0-16-14-22l-1-8H45z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/>';
   if(vid==='v3') return '<path d="M36 44q-6 4-6 16 0 18 20 18t20-18q0-12-6-16l2-6H34z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/>';
   return '<path d="M46 34q-2 14-9 22-4 5-4 10 0 12 17 12t17-12q0-5-4-10-7-8-9-22l-1-6h-6z" fill="var(--card2)" stroke="var(--line)" stroke-width="1.6"/>';
@@ -93,7 +102,8 @@ function svgVaseFull(){
   const snail=v.snail?'<g stroke="var(--sub)" stroke-width="1.3" fill="none" stroke-linecap="round"><circle cx="76" cy="86" r="3.4"/><path d="M76 86q1.5 0 1.5-1.5M72.6 86q0-3 3-3M79 88h-9q-2 0-2-1.6"/><path d="M70 84q-1-2 0-3M72 84q0-2 1-3"/></g>':'';
   let water='';
   if(v.ws&&vaseStems().length){
-    const lv=v.vid==='v2'?{cy:62,rx:15}:v.vid==='v3'?{cy:62,rx:16}:{cy:69,rx:10.5};
+    const sk=decoSkin('vskin');
+    const lv=sk==='vmilk'?{cy:63,rx:14}:sk==='vclay'?{cy:61,rx:18}:sk==='vslim'?{cy:69,rx:10}:v.vid==='v2'?{cy:62,rx:15}:v.vid==='v3'?{cy:62,rx:16}:{cy:69,rx:10.5};
     water='<ellipse cx="50" cy="'+lv.cy+'" rx="'+lv.rx+'" ry="2.6" fill="var(--p4)" opacity=".16"/>'+
       '<path d="M'+(50-lv.rx)+' '+lv.cy+'q'+(lv.rx/2)+' 2 '+lv.rx+' 0t'+lv.rx+' 0" stroke="var(--p4)" stroke-width="1" fill="none" opacity=".38"/>'+
       ((v.ws==='snow')?'<path d="M'+(50-lv.rx+3)+' '+(lv.cy+4)+'q5 2 10 0t10 0" stroke="var(--p4)" stroke-width=".9" fill="none" opacity=".5"/>':'');
@@ -174,6 +184,100 @@ function vaseMini(){
   mini.querySelector('[data-a="go"]').addEventListener('click',()=>{ closeMini(); gTab='garden'; gSub='arr'; go('scr-garden'); renderGardenTab(); });
   mini.querySelector('[data-a="hide"]').addEventListener('click',()=>{ v.hide=!v.hide; save(); closeMini(); renderVase(); toast(v.hide?'藏起来了 · 它还在，照常开':'回来了'); });
 }
+/* ================= v2.9 装饰（纯看，零加成） ================= */
+const FOXLINES=['呼噜……呼噜……','在守着猫草，没有偷吃','尾巴不是给摸的，是给看的','梦里有一整片荆芥地','别吵，太阳正好'];
+/* 蜷成一圈的小狐猫剪影：尾巴绕身，局部坐标约 40×24，脚下基线 y≈23 */
+function svgFoxG(){
+  return '<g class="ftail"><path d="M8 14q-4.5 6 1.5 8.5 5.5 2 11.5 .5" stroke="var(--apricot-ink)" stroke-width="4.4" fill="none" stroke-linecap="round"/><circle cx="21.5" cy="22.6" r="2" fill="var(--card2)" stroke="var(--apricot-ink)" stroke-width="1"/></g>'+
+    '<ellipse cx="20" cy="15" rx="12.5" ry="7.6" fill="var(--apricot-ink)"/>'+
+    '<path d="M25.6 6.8l.7-4.2 3.6 2.7z" fill="var(--apricot-ink)"/><path d="M31.2 5.2l1.9-3.8 2.2 4.1z" fill="var(--apricot-ink)"/>'+
+    '<circle cx="29.5" cy="10.5" r="5.8" fill="var(--apricot-ink)"/>'+
+    '<path d="M27.8 10.6q1.7 1.3 3.4 0" stroke="var(--card)" stroke-width="1" fill="none" stroke-linecap="round" opacity=".8"/>';
+}
+function svgFoxAt(x,y,s,sway){ return '<g class="deco-fox'+(sway?' foxsway':'')+'" data-deco="fox" transform="translate('+x+' '+y+') scale('+s+')">'+svgFoxG()+'</g>'; }
+/* 狐猫趴哪：有活的荆芥盆（基键 jj 且非 st4）就去第一盆的格子边上，否则回篱笆脚下 */
+function foxPlotIdx(){
+  if(!decoHas('fox')) return -1;
+  let r=-1;
+  D.g.plots.forEach((p,i)=>{ if(r<0&&p&&spBase(p.sp)==='jj'&&plotState(p).st!==4) r=i; });
+  return r;
+}
+/* 篱笆装饰架：矮篱笆做底，提灯挂左 / 木牌立中 / 罐子放右 / 狐猫趴篱笆脚下；一样都没有就整条不渲染 */
+function decoStripHtml(){
+  const d=D.g.deco||{};
+  if(!(d.fox||d.jar||d.sign||d.lamp)) return '';
+  let h='<div class="fencerow"><svg viewBox="0 0 320 78">';
+  h+='<path d="M8 72.5h304" stroke="var(--line)" stroke-width="1.6" stroke-linecap="round"/>';
+  h+='<path d="M36 72q1.5-4.5 3.5-5.5M262 72q-1.5-4.5-3.5-5.5M120 72q-1-3.5-2.5-4.5" stroke="var(--sage)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".45"/>';
+  h+='<rect x="14" y="40" width="292" height="4.5" rx="2.2" fill="var(--card2)" stroke="var(--line)" stroke-width="1.1"/>';
+  h+='<rect x="14" y="55" width="292" height="4.5" rx="2.2" fill="var(--card2)" stroke="var(--line)" stroke-width="1.1"/>';
+  [30,85,140,195,250,305].forEach(x=>{ h+='<rect x="'+(x-3)+'" y="32" width="6" height="40" rx="3" fill="var(--card2)" stroke="var(--line)" stroke-width="1.1"/>'; });
+  if(d.lamp){
+    h+='<g data-deco="lamp"><circle cx="52" cy="42.2" r="2" fill="none" stroke="var(--apricot-ink)" stroke-width="1.2"/><path d="M52 44.2v3.6" stroke="var(--apricot-ink)" stroke-width="1.2"/>'+
+      '<g class="lampglow"><path d="M46.8 51.6h10.4l-2.2-3.8h-6z" fill="var(--apricot-ink)"/>'+
+      '<path d="M47.6 51.6h8.8v8.2q0 2.6-4.4 2.6t-4.4-2.6z" fill="#F0CB7E" stroke="var(--apricot-ink)" stroke-width="1.2" opacity=".92"/>'+
+      '<circle cx="52" cy="57.2" r="1.8" fill="#E09B3F"/></g>'+
+      '<path d="M49.6 63.2h4.8" stroke="var(--apricot-ink)" stroke-width="1.6" stroke-linecap="round"/></g>';
+  }
+  if(d.sign){
+    const st=(d.sign&&d.sign.t)?String(d.sign.t):'';
+    const txt=st||'沐沐的花园';
+    const fs=txt.length<=6?11:(txt.length<=9?8.5:6.9);
+    h+='<g data-deco="sign"><rect x="122" y="54" width="4.5" height="17" rx="2" fill="var(--card2)" stroke="var(--line)" stroke-width="1.1"/><rect x="173.5" y="54" width="4.5" height="17" rx="2" fill="var(--card2)" stroke="var(--line)" stroke-width="1.1"/>'+
+      '<rect x="106" y="34" width="88" height="21" rx="4.5" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>'+
+      '<text x="150" y="'+(44.5+fs*.36).toFixed(1)+'" text-anchor="middle" font-size="'+fs+'" fill="var(--sub)" font-family="var(--serif)">'+esc(txt)+'</text></g>';
+  }
+  if(d.jar){
+    h+='<g class="deco-jar"><rect x="262" y="51.5" width="20" height="20.5" rx="5" fill="var(--card2)" stroke="var(--sub)" stroke-width="1.2" opacity=".9"/>'+
+      '<rect x="264.5" y="47.6" width="15" height="4.2" rx="2.1" fill="var(--sage)" opacity=".7"/>'+
+      '<path d="M265.8 56q-1 4.5 0 9" stroke="var(--faint)" stroke-width="1" fill="none" stroke-linecap="round" opacity=".6"/>'+
+      '<circle class="ffly" cx="268.5" cy="63.5" r="1.5" fill="var(--apricot-ink)"/><circle class="ffly f2" cx="275.5" cy="58.5" r="1.3" fill="var(--apricot-ink)"/><circle class="ffly f3" cx="272.5" cy="67" r="1.2" fill="var(--apricot-ink)"/></g>';
+  }
+  if(d.fox&&foxPlotIdx()<0) h+=svgFoxAt(64,47.8,1.05,false);
+  h+='</svg></div>';
+  return h;
+}
+function signEdit(){
+  const g=D.g; if(!decoHas('sign')) return;
+  const cu=(g.deco.sign&&g.deco.sign.t)?g.deco.sign.t:'';
+  openMini('<h5>花园木牌 · 想写点什么？</h5>'+
+    '<input id="signT" class="edin" style="background:var(--bg);margin-bottom:9px" maxlength="12" placeholder="沐沐的花园" value="'+esc(cu)+'">'+
+    '<button class="act" data-a="ok" style="background:var(--sage);color:#FBFBF6;text-align:center">写上去</button>');
+  mini.querySelector('[data-a="ok"]').addEventListener('click',()=>{
+    g.deco.sign={t:$('#signT').value.trim().slice(0,12)};
+    save(); closeMini(); if(cur==='scr-garden') renderGardenTab(); toast('牌子上写好了');
+  });
+}
+function wireDeco(){
+  $$('#gBody [data-deco="fox"]').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); toast(FOXLINES[Math.floor(Math.random()*FOXLINES.length)]); }));
+  $$('#gBody [data-deco="sign"]').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); signEdit(); }));
+  $$('#gBody [data-deco="lamp"]').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); const nt=(D.g.deco&&D.g.deco.lampNote)||''; toast(nt?'「'+nt+'」——妈咪把它挂在这儿':'妈咪寄来的小提灯，一直替她亮着'); }));
+}
+/* 换装：vskin / pskin 两组 chips；默认款＋已买款式可选，未买的灰着提示去商店 */
+function skinChipRow(cat){
+  const on=decoSkin(cat);
+  let h='<div class="catwrap" style="padding:4px 0 2px">';
+  h+='<button class="chip'+(on?'':' on')+'" data-skc="'+cat+'" data-skk="def">默认款</button>';
+  decoKeys(cat).forEach(k=>{
+    h+='<button class="chip'+(on===k?' on':'')+(decoHas(k)?'':' dim')+'" data-skc="'+cat+'" data-skk="'+k+'">'+DECO[k].n.replace(/^花[瓶盆] · /,'')+'</button>';
+  });
+  return h+'</div>';
+}
+function dressChipsHtml(){ return '<div class="dgroup">花瓶款式</div>'+skinChipRow('vskin')+'<div class="dgroup">花盆款式</div>'+skinChipRow('pskin'); }
+function wireSkinChips(rerender){
+  $$('#gBody [data-skk]').forEach(b=>b.addEventListener('click',()=>{
+    const cat=b.dataset.skc, k=b.dataset.skk, g=D.g; g.deco=g.deco||{};
+    const short=k==='def'?'':DECO[k].n.replace(/^花[瓶盆] · /,'');
+    if(k==='def'){ if(!decoSkin(cat)) return; delete g.deco[cat]; }
+    else{
+      if(!g.deco[k]){ toast('这款还没入住，商店有售'); return; }
+      if(g.deco[cat]===k) return;
+      g.deco[cat]=k;
+    }
+    save(); renderVase(); if(rerender) rerender();
+    toast(k==='def'?'换回默认款了':(cat==='pskin'?'花盆换成'+short+'的了':'换上'+short+'了'));
+  }));
+}
 var gTab='garden', gSub='main', mamiCache=null, mamiAt=0;
 function renderGardenTab(){
   if(cur!=='scr-garden') return;
@@ -192,13 +296,16 @@ function wireBack(){ const b=document.querySelector('#gBody [data-gb]'); if(b) b
 function renderGardenMain(){
   const g=D.g; gTick(true); vaseRetireCheck(true);
   let h='<div class="ghead"><span style="font-size:12px;color:var(--sub)">'+careLabel(careBits(TODAY))+'</span><span class="gcoin">✿ '+g.coins+'</span></div>';
+  const fpi=foxPlotIdx(); /* v2.9 狐猫趴哪盆（-1=篱笆脚下） */
   h+='<div class="plotrow">';
   g.plots.forEach((p,i)=>{
     if(!p){ h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+svgPot()+'</svg></div><div class="pn">　</div></div>'; return; }
     const s=plotState(p);
-    h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+spSvg(p.sp,s.st,p.fz===1,spHex(p.sp))+'</svg></div><div class="pn">'+spName(p.sp)+'</div></div>';
+    const fox=(i===fpi)?svgFoxAt(66,75,0.7,s.st===5||s.st===2):'';
+    h+='<div class="plotwrap"><div class="plot" data-pi="'+i+'"><svg viewBox="0 0 100 100">'+spSvg(p.sp,s.st,p.fz===1,spHex(p.sp))+fox+'</svg></div><div class="pn">'+spName(p.sp)+'</div></div>';
   });
   h+='</div>';
+  h+=decoStripHtml();
   h+='<div class="gbtns"><button class="gbtn" data-gn="arr">插花<small>ARRANGE</small></button><button class="gbtn" data-gn="store">仓库<small>STORAGE</small></button><button class="gbtn" data-gn="shop">商店<small>SHOP</small></button></div>';
   if(g.hist.length){
     h+='<div class="gcard"><h4>花园史</h4>'+g.hist.slice(0,6).map(t=>'<div class="ghist">'+esc(t)+'</div>').join('')+'</div>';
@@ -207,6 +314,7 @@ function renderGardenMain(){
   document.querySelector('#gBody').innerHTML=h;
   $$('#gBody .plot').forEach(el=>el.addEventListener('click',()=>plotActions(+el.dataset.pi)));
   $$('#gBody [data-gn]').forEach(b=>b.addEventListener('click',()=>{ gSub=b.dataset.gn; renderGardenTab(); }));
+  wireDeco();
 }
 function plotActions(i){
   const g=D.g, p=g.plots[i];
@@ -290,16 +398,20 @@ function renderArr(){
   const def=VASES[g.vase.vid];
   let h=gBackBtn();
   h+='<div class="gcard"><h4>瓶中 · '+def.n+(g.vase.ws?'<small>'+WATERS[g.vase.ws].n+'</small>':'')+'</h4>';
+  h+='<div class="vprev">'+svgVaseFull()+'</div>';
   const vs=vaseStems();
   if(vs.length){ vs.forEach(s=>{ h+='<div class="grow2"><span class="sp2">'+POSN[s.pos]+' · '+spName(s.sp)+(s.sc?'（带疤）':'')+'<span class="sub2">'+stemLeftLabel(s)+'</span></span>'+stemRowBtns(s,'vase')+'</div>'; }); }
   else h+='<p class="empty" style="padding:8px">瓶里空着</p>';
   h+='</div>';
+  if(decoKeys('vskin').some(decoHas)||decoKeys('pskin').some(decoHas)){
+    h+='<div class="gcard"><h4>换装<small>瓶身盆身换，花不动</small></h4>'+dressChipsHtml()+'</div>';
+  }
   const cands=g.inv.filter(s=>s.loc!=='vase'&&!stemDead(s));
   h+='<div class="gcard"><h4>可插的花枝<small>货架与冰箱里</small></h4>';
   if(cands.length){ cands.forEach(s=>{ h+='<div class="grow2"><span class="sp2">'+spName(s.sp)+(s.sc?'（带疤）':'')+'<span class="sub2">'+stemLeftLabel(s)+'</span></span><button class="pri" data-va="ins" data-si="'+s.id+'">插瓶</button></div>'; }); }
   else h+='<p class="empty" style="padding:8px">没有能插的花枝</p>';
   h+='</div>';
-  document.querySelector('#gBody').innerHTML=h; wireBack(); wireStemBtns(renderArr);
+  document.querySelector('#gBody').innerHTML=h; wireBack(); wireStemBtns(renderArr); wireSkinChips(renderArr);
 }
 function wireStemBtns(rerender){
   const g=D.g;
@@ -432,6 +544,21 @@ function renderShop(){
   h+='<div class="gcard"><h4>肥料<small>催一催进度</small></h4>';
   h+='<div class="grow2"><span class="sp2">营养土 · 2 花币<span class="sub2">每包快 10 小时 · 仓库里有 '+(g.fert||0)+' 包</span></span><button '+(g.coins<2?'disabled style="opacity:.4"':'class="pri"')+' data-ba="fert">买一包</button></div>';
   h+='</div>';
+  /* v2.9 装饰柜台：纯装饰零加成，一次买断；注册表里 price 为 null 的非卖品不上架 */
+  const DECOD={fox:'蜷成一圈打盹 · 家里有活着的荆芥就去陪它',jar:'两三只小萤火虫 · 天黑了会亮',vmilk:'胖圆肩窄口',vclay:'矮墩宽口带一道棱',vslim:'高细颈小肚',psq:'沿口略宽身子方正 · 全园花盆一起换',sign:'立在篱笆边 · 字随你写'};
+  h+='<div class="gcard"><h4>装饰<small>纯装饰 · 零加成 · 一次买断</small></h4>';
+  [['shelf','摆件'],['vskin','花瓶款式'],['pskin','花盆款式']].forEach(([cat,label])=>{
+    const ks=decoKeys(cat).filter(k=>DECO[k].price!=null);
+    if(!ks.length) return;
+    h+='<div class="dgroup">'+label+'</div>';
+    ks.forEach(k=>{
+      const dd=DECO[k];
+      h+='<div class="grow2"><span class="sp2">'+dd.n+' · '+dd.price+' 花币<span class="sub2">'+(DECOD[k]||'')+'</span></span>'+
+        (decoHas(k)?'<button disabled style="opacity:.4">已入住</button>':'<button '+(g.coins<dd.price?'disabled style="opacity:.4"':'class="pri"')+' data-ba="deco" data-bk="'+k+'">买下</button>')+'</div>';
+    });
+  });
+  h+='</div>';
+  h+='<div class="gcard"><h4>换装<small>买断的款式随时换 · 瓶身盆身换，花不动</small></h4>'+dressChipsHtml()+'</div>';
   h+='<div class="gcard"><h4>花瓶与花盆</h4>';
   Object.keys(VASES).forEach(k=>{
     if(g.own.includes(k)){
@@ -484,8 +611,17 @@ function renderShop(){
       if(g.coins<2) return;
       g.coins-=2; g.fert=(g.fert||0)+1;
       save(); renderShop(); toast('买了一包营养土 · 去仓库施肥');
+    } else if(a==='deco'){
+      const dd=DECO[k]; if(!dd||dd.price==null) return;
+      g.deco=g.deco||{};
+      if(g.deco[k]||g.coins<dd.price) return;
+      g.coins-=dd.price; g.deco[k]=1;
+      if(dd.cat==='shelf') ghist(dd.n+'住进了花园');
+      save(); renderShop();
+      toast(dd.cat==='shelf'?(dd.n+'住进花园了 · 回花园看看'):(dd.n+'到手了 · 在「换装」里选上'));
     }
   }));
+  wireSkinChips(renderShop);
 }
 function renderGardenBook(){
   const g=D.g;
