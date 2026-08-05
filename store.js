@@ -25,7 +25,7 @@ function defaults(){
       C:[{t:'买那个购物车里放了很久的东西',rep:false,used:false},{t:'安排一次短途出游',rep:false,used:false},{t:'一整天彻底放假，理直气壮',rep:true,used:false}]
     },
     miles:[{n:100,t:'吃一顿正式的大餐，庆祝一百件小事',c:false},{n:500,t:'给自己买一件一直想要的大件',c:false},{n:1000,t:'策划一次真正的旅行',c:false}],
-    tasks:[], tpl:[],
+    tasks:[], tpl:[], ttmpl:[],
     log:[], disc:[],
     rw:{counter:0, life:0, pend:[], done:[]},
     words:{
@@ -113,6 +113,8 @@ if(D.g && !D.g.ev){
   if(D.g.vase){ D.g.vase.ws=null; D.g.vase.snail=false; }
   if(back){ D.g.hist.unshift(fmtMD(todayISO())+'　花园换了新的钟——旧盆栽旧花枝化作 '+back+' 颗种子回到袋里，新账从今天记起'); if(D.g.hist.length>40) D.g.hist.length=40; }
 }
+/* v2.8 migration: 任务模板 */
+if(!D.ttmpl) D.ttmpl=[];
 function save(silent){
   if(!silent) D._ts=Date.now();
   try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ toast('保存失败：存储空间可能已满'); }

@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=2.7.1">
+<link rel="stylesheet" href="style.css?v=2.8.0">
 </head>
 <body data-theme="day">
 <div class="phone">
@@ -266,9 +266,14 @@
       </div>
       <div class="setcard">
         <h4>工作流模板</h4>
-        <p class="desc">一行一步；步骤后加 ? 表示可跳过；用 [变体名] 分组做分支；可设每月几号自动开始（设定当月请手动发起，下个周期起自动出现，默认第一个变体）。</p>
+        <p class="desc">一行一步；步骤后加 ? 表示可跳过；用 [变体名] 分组做分支；可设自动循环：每日 / 每几天 / 每周几 / 每月几号（设定当期请手动发起，下个周期起自动出现，默认第一个变体）。</p>
         <div id="flowList"></div>
         <button class="btn" id="flowAdd" style="margin-top:10px">新建模板</button>
+      </div>
+      <div class="setcard">
+        <h4>任务模板</h4>
+        <p class="desc">把常建的任务存成样板：任务 ⋯ 菜单里「存成模板」，新建面板点「用模板」一键填好</p>
+        <div id="ttmplList"></div>
       </div>
       <div class="setcard">
         <h4>纪念日</h4>
@@ -361,7 +366,7 @@
         <p class="desc">清空后无法恢复，请先导出备份</p>
         <button class="btn danger" id="wipeBtn">清空全部数据</button>
       </div>
-      <p class="empty">小记 v2.7.1 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
+      <p class="empty">小记 v2.8.0 · 肥波哥出品<br><span id="cloudFoot">妈咪云端入口 · Coming soon</span></p>
     </div>
   </section>
 
@@ -431,15 +436,28 @@
     <label>任务名称</label>
     <input type="text" id="tName" placeholder="要做什么？" maxlength="60">
   </div>
+  <div id="tRemarkWrap">
+    <input type="text" id="tRemark" placeholder="备注（选填）" maxlength="120" style="margin-top:8px">
+  </div>
   <label>任务类型</label>
   <span class="pills" id="tTypePills" style="flex-wrap:wrap">
     <button class="pill on" data-t="once">当日</button>
-    <button class="pill" data-t="daily">循环</button>
     <button class="pill" data-t="span">跨时段</button>
     <button class="pill" data-t="idle">长期</button>
     <button class="pill" data-t="flow">流程</button>
   </span>
   <p class="futnote" id="idleNote" style="display:none">🛋 长期任务：没有期限，不会过期，躺到你完成为止</p>
+  <div id="tTmplWrap" style="display:none">
+    <label>用模板</label>
+    <div class="catgrid" id="tTmplChips"></div>
+  </div>
+  <div id="tModeWrap">
+    <label>模式</label>
+    <span class="pills" id="tModePills">
+      <button class="pill on" data-m="one">单次</button>
+      <button class="pill" data-m="rec">循环</button>
+    </span>
+  </div>
   <div id="tFlowWrap" style="display:none">
     <label>选择流程模板（在 设置→工作流模板 里创建）</label>
     <div class="catgrid" id="tFlowTmpls"></div>
@@ -471,6 +489,10 @@
       <input type="number" id="tMd" min="1" max="31" value="18" inputmode="numeric" class="edin" style="background:var(--bg)">
     </div>
   </div>
+  <div id="tLenWrap" style="display:none">
+    <label>跨几天（一轮持续的天数 · 错过的轮次会记进废弃）</label>
+    <input type="number" id="tLen" min="1" max="365" value="7" inputmode="numeric" class="edin" style="background:var(--bg)">
+  </div>
   <div id="tDateWrap">
     <label>日期（选未来的日期就是预制任务）</label>
     <input type="date" id="tDate">
@@ -492,21 +514,21 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="core.js?v=2.7.1"></script>
-<script src="store.js?v=2.7.1"></script>
-<script src="cloud.js?v=2.7.1"></script>
-<script src="ui.js?v=2.7.1"></script>
-<script src="tasks.js?v=2.7.1"></script>
-<script src="rewards.js?v=2.7.1"></script>
-<script src="mood.js?v=2.7.1"></script>
-<script src="notes.js?v=2.7.1"></script>
-<script src="cycle.js?v=2.7.1"></script>
-<script src="words.js?v=2.7.1"></script>
-<script src="records.js?v=2.7.1"></script>
-<script src="settings.js?v=2.7.1"></script>
-<script src="garden-engine.js?v=2.7.1"></script>
-<script src="garden-ui.js?v=2.7.1"></script>
-<script src="mami.js?v=2.7.1"></script>
-<script src="boot.js?v=2.7.1"></script>
+<script src="core.js?v=2.8.0"></script>
+<script src="store.js?v=2.8.0"></script>
+<script src="cloud.js?v=2.8.0"></script>
+<script src="ui.js?v=2.8.0"></script>
+<script src="tasks.js?v=2.8.0"></script>
+<script src="rewards.js?v=2.8.0"></script>
+<script src="mood.js?v=2.8.0"></script>
+<script src="notes.js?v=2.8.0"></script>
+<script src="cycle.js?v=2.8.0"></script>
+<script src="words.js?v=2.8.0"></script>
+<script src="records.js?v=2.8.0"></script>
+<script src="settings.js?v=2.8.0"></script>
+<script src="garden-engine.js?v=2.8.0"></script>
+<script src="garden-ui.js?v=2.8.0"></script>
+<script src="mami.js?v=2.8.0"></script>
+<script src="boot.js?v=2.8.0"></script>
 </body>
 </html>

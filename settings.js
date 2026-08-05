@@ -66,7 +66,8 @@ function renderSettings(){
     const stepsN=vs.reduce((a,v)=>a+v.steps.length,0);
     const hasForks=vs.some(v=>v.forks&&v.forks.length);
     const forkN=hasForks?vs.reduce((a,v)=>a+(v.forks?v.forks.length:0),0):0;
-    return `<div class="tpl-row"><span class="sp">${esc(t.n)} ${tagHTML(t.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${vs.length>1?vs.length+'变体·':''}${stepsN}步${hasForks?'→'+forkN+'条路线':''}${t.md?' · 每月'+t.md+'日':''}</span></span>
+    const ffq=t.freq||(t.md?'monthly':null);
+    return `<div class="tpl-row"><span class="sp">${esc(t.n)} ${tagHTML(t.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${vs.length>1?vs.length+'变体·':''}${stepsN}步${hasForks?'→'+forkN+'条路线':''}${ffq?' · '+tplFreqLabel({freq:ffq,n:t.nd,wd:t.wd,md:t.md}):''}</span></span>
       <button data-fa="e" data-i="${i}">编辑</button>
       <button data-fa="x" data-i="${i}">删除</button></div>`;
   }).join('') : '<p class="empty" style="padding:8px">还没有模板</p>';
@@ -74,6 +75,14 @@ function renderSettings(){
     const i=+b.dataset.i, t=D.flows.tmpl[i];
     if(b.dataset.fa==='e') flowEditor(t);
     else if(confirm(`删除模板「${t.n}」？进行中的流程不受影响`)){ D.flows.tmpl.splice(i,1); save(); renderSettings(); }
+  }));
+  // task templates
+  $('#ttmplList').innerHTML=D.ttmpl.length? D.ttmpl.map((m,i)=>`
+    <div class="tpl-row"><span class="sp">${esc(m.name)} ${tagHTML(m.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${ttLabel(m)} · ${m.rec?tplFreqLabel(m.rec):'单次'}</span></span>
+      <button data-ta="x" data-i="${i}">删除</button></div>`).join('')
+    : '<p class="empty" style="padding:8px">还没有模板 · 在任务的 ⋯ 菜单里「存成模板」</p>';
+  $$('#ttmplList button').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm(`删除任务模板「${D.ttmpl[+b.dataset.i].name}」？`)){ D.ttmpl.splice(+b.dataset.i,1); save(); renderSettings(); }
   }));
   // anniversaries
   $('#anniList').innerHTML=D.anni.length? D.anni.map((a,i)=>`
@@ -118,14 +127,14 @@ function renderSettings(){
   $('#poolM').value=D.miles.map(m=>m.n+'|'+m.t).join('\n');
   const tl=$('#tplList');
   tl.innerHTML=D.tpl.length? D.tpl.map((p,i)=>`
-    <div class="tpl-row"><span class="sp ${p.active===false?'off':''}">${esc(p.name)} ${tagHTML(p.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${tplFreqLabel(p)}</span></span>
+    <div class="tpl-row"><span class="sp ${p.active===false?'off':''}">${esc(p.name)} ${tagHTML(p.cat)}<span style="color:var(--faint);font-size:11px">&ensp;${tplFreqLabel(p)} · ${ttLabel(p)}</span></span>
       <button data-a="t" data-i="${i}">${p.active===false?'启用':'停用'}</button>
       <button data-a="d" data-i="${i}">删除</button></div>`).join('')
     : '<p class="empty" style="padding:10px">还没有循环任务<br>在任务页 + 里选「循环」创建</p>';
   $$('#tplList button').forEach(b=>b.addEventListener('click',()=>{
     const p=D.tpl[+b.dataset.i];
     if(b.dataset.a==='t'){ p.active=p.active===false; save(); renderSettings(); }
-    else if(confirm(`删除每日任务「${p.name}」？`)){ D.tpl.splice(+b.dataset.i,1); save(); renderSettings(); }
+    else if(confirm(`删除循环任务「${p.name}」？`)){ D.tpl.splice(+b.dataset.i,1); save(); renderSettings(); }
   }));
   // categories
   $('#catList').innerHTML=D.cats.map((c,i)=>`
@@ -172,6 +181,8 @@ $('#catAdd').addEventListener('click',()=>{
 $('#setNick').addEventListener('change',()=>{ D.s.nick=$('#setNick').value.trim()||'青沐'; save(); toast('记住啦'); });
 function flowEditor(t){
   let fwCat=t?t.cat:(D.cats[0]||{id:'work'}).id;
+  let fwFreq=t?(t.freq||(t.md?'monthly':'off')):'off';
+  let fwWd=(t&&t.wd!==undefined)?t.wd:1;
   openMini(`<h5>${t?'编辑':'新建'}工作流模板</h5>
     <input id="fwName" class="edin" style="background:var(--bg);margin-bottom:8px" placeholder="流程名称（如：开发票）" maxlength="12" value="${t?esc(t.n):''}">
     <label>类型</label>
@@ -179,11 +190,29 @@ function flowEditor(t){
       const col=catColor(c), on=c.id===fwCat;
       return `<button class="chip${on?' on':''}" data-fc="${c.id}" style="${on?`background:${col};border-color:${col}`:`color:${col}`}">${esc(c.n)}</button>`;
     }).join('')}</div>
-    <label>每月几号自动开始（留空 = 只手动发起）</label>
-    <input id="fwMd" class="edin" inputmode="numeric" style="background:var(--bg);margin-bottom:8px;width:110px" value="${t&&t.md?t.md:''}">
+    <label>自动循环（到点自动开始新一轮 · 选「关」只手动发起）</label>
+    <div class="catwrap" id="fwFq" style="margin-bottom:8px">${[['off','关'],['daily','每日'],['every','每几天'],['weekly','每周几'],['monthly','每月几号']].map(([k,n])=>`<button class="chip${k===fwFreq?' on':''}" data-ff="${k}">${n}</button>`).join('')}</div>
+    <div id="fwNWrap" style="display:none;margin-bottom:8px"><input id="fwN" class="edin" inputmode="numeric" style="background:var(--bg);width:110px" placeholder="每几天" value="${t&&t.nd?t.nd:3}"></div>
+    <div class="catwrap" id="fwWdWrap" style="display:none;margin-bottom:8px"></div>
+    <div id="fwMdWrap" style="display:none;margin-bottom:8px"><input id="fwMd" class="edin" inputmode="numeric" style="background:var(--bg);width:110px" placeholder="几号" value="${t&&t.md?t.md:''}"></div>
     <label>步骤 · 一行一步 · ?可跳过 · [变体名]分支 · 分叉A[名称]运行时分叉</label>
     <textarea id="fwBody" placeholder="催同事确认增减员&#10;新增人员录入?&#10;提交报验&#10;申报&#10;缴费&#10;开具完税证明" style="width:100%;min-height:150px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:11px 13px;font-size:13px;color:var(--ink);font-family:var(--sans);outline:none;line-height:1.8;resize:vertical">${t?esc(t.body):''}</textarea>
     <button class="act" data-a="sv" style="background:var(--sage);color:#FBFBF6;text-align:center;margin-top:10px">保存模板</button>`);
+  const syncFw=()=>{
+    $('#fwNWrap').style.display=fwFreq==='every'?'':'none';
+    $('#fwWdWrap').style.display=fwFreq==='weekly'?'':'none';
+    $('#fwMdWrap').style.display=fwFreq==='monthly'?'':'none';
+  };
+  const drawFwWd=()=>{
+    $('#fwWdWrap').innerHTML=[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']].map(([v,n])=>`<button class="chip${v===fwWd?' on':''}" data-fw="${v}">周${n}</button>`).join('');
+    mini.querySelectorAll('[data-fw]').forEach(c=>c.addEventListener('click',()=>{ fwWd=+c.dataset.fw; drawFwWd(); }));
+  };
+  drawFwWd(); syncFw();
+  mini.querySelectorAll('[data-ff]').forEach(b=>b.addEventListener('click',()=>{
+    fwFreq=b.dataset.ff;
+    mini.querySelectorAll('[data-ff]').forEach(x=>x.classList.toggle('on',x.dataset.ff===fwFreq));
+    syncFw();
+  }));
   mini.querySelectorAll('[data-fc]').forEach(b=>b.addEventListener('click',()=>{
     fwCat=b.dataset.fc;
     mini.querySelectorAll('[data-fc]').forEach(x=>{
@@ -197,15 +226,23 @@ function flowEditor(t){
     if(!n){ toast('给流程起个名字'); return; }
     const body=$('#fwBody').value;
     if(!parseFlow(body).length){ toast('至少写一个步骤'); return; }
-    let md=parseInt($('#fwMd').value)||null;
-    if(md) md=Math.min(31,Math.max(1,md));
-    if(t){
-      const mdChanged=md!==t.md;
-      t.n=n; t.cat=fwCat; t.body=body; t.md=md;
-      if(mdChanged) t.lastWin=md?tplWindow({freq:'monthly',md}):null;
-    } else {
-      D.flows.tmpl.push({id:uid(),n,cat:fwCat,md,body,lastWin:md?tplWindow({freq:'monthly',md}):null});
+    const freq=fwFreq==='off'?null:fwFreq;
+    const nd=Math.min(365,Math.max(2,parseInt($('#fwN').value)||3));
+    const md=Math.min(31,Math.max(1,parseInt($('#fwMd').value)||1));
+    const o=t||{id:uid()};
+    const oldKey=[o.freq||(o.md?'monthly':''),o.nd||'',o.wd===undefined?'':o.wd,o.md||''].join('|');
+    o.n=n; o.cat=fwCat; o.body=body;
+    delete o.freq; delete o.nd; delete o.wd; delete o.md;
+    if(freq){
+      o.freq=freq;
+      if(freq==='every') o.nd=nd;
+      if(freq==='weekly') o.wd=fwWd;
+      if(freq==='monthly') o.md=md;
+      if(!o.created) o.created=TODAY;
     }
+    const newKey=[o.freq||'',o.nd||'',o.wd===undefined?'':o.wd,o.md||''].join('|');
+    if(newKey!==oldKey) o.lastWin=freq?tplWindow(freq==='every'?{freq,n:o.nd,created:o.created}:o):null;
+    if(!t) D.flows.tmpl.push(o);
     save(); closeMini(); renderSettings(); toast('模板已保存');
   });
 }

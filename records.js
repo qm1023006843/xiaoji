@@ -54,9 +54,9 @@ function renderRecords(){
   $$('#recChips .chip').forEach(c=>c.addEventListener('click',()=>{ recF=c.dataset.f; renderRecords(); }));
   // list
   if(recF==='disc'){
-    $('#recListLabel').textContent='废弃清单 · 当日未完成自动归档';
+    $('#recListLabel').textContent='废弃清单 · 过期归档与手动放弃';
     $('#recList').innerHTML=discs.length? discs.slice().reverse().slice(0,60).map(d=>
-      `<div class="done-item" style="opacity:.72"><span class="dot" style="background:var(--faint)"></span><span class="nm2">${esc(d.name)}</span>${tagHTML(d.cat)}<span class="tm">${d.date.slice(5,7)}.${d.date.slice(8,10)}</span></div>`).join('')
+      `<div class="done-item" style="opacity:.72"><span class="dot" style="background:var(--faint)"></span><span class="nm2">${esc(d.name)}</span>${tagHTML(d.cat)}<span class="tm">${d.m?'放弃 · ':''}${d.date.slice(5,7)}.${d.date.slice(8,10)}</span></div>`).join('')
       : '<p class="empty">没有废弃的任务，了不起</p>';
   } else {
     $('#recListLabel').textContent='完成清单 · 点一条可修改类型';
@@ -66,7 +66,7 @@ function renderRecords(){
     if(!rVis.length){ rl.innerHTML='<p class="empty">这里还空着</p>'; }
     else {
       rl.innerHTML=rVis.slice().reverse().slice(0,60).map(v=>{
-        if(v.t==='s'){ const l=v.l; return `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}</span>${tagHTML(l.cat)}<span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`; }
+        if(v.t==='s'){ const l=v.l; return `<div class="done-item" data-id="${l.id}" style="cursor:pointer"><span class="dot" style="background:${dotColor(l.cat)}"></span><span class="nm2">${esc(l.name)}${l.rk?` <small style="color:var(--faint)">📎${esc(l.rk)}</small>`:''}</span>${tagHTML(l.cat)}<span class="tm">${(l.cd&&l.cd!==l.date)?l.cd.slice(5,7)+'.'+l.cd.slice(8,10)+'→':''}${fmtDT(l.ts)}</span></div>`; }
         const g=v.g;
         return `<div class="done-item flow-gp" data-fid="${v.fid}" style="cursor:pointer"><span class="dot" style="background:${dotColor(g.cat)}"></span><span class="nm2">${esc(g.fn)}</span>${tagHTML(g.cat)}<span class="tm">${g.items.length}步 · ${fmtDT(g.ts)} <span class="fexp">▸</span></span></div>`+
           `<div class="flow-sub" data-fid="${v.fid}" style="display:none">`+g.items.map(l=>
@@ -91,7 +91,7 @@ $('#recExport').addEventListener('click',()=>{
   if(recF==='disc'){
     const discs=D.disc.filter(d=>inRange(d.date));
     title=`小记 · 废弃清单（${recLabel()}）`;
-    rows=discs.map(d=>`${d.date.slice(5,7)}.${d.date.slice(8,10)}　${d.name}${d.cat?'（'+catOf(d.cat).n+'）':''}`);
+    rows=discs.map(d=>`${d.date.slice(5,7)}.${d.date.slice(8,10)}${d.m?'（放弃）':''}　${d.name}${d.cat?'（'+catOf(d.cat).n+'）':''}`);
   } else {
     const fl=recF==='all'?logs:logs.filter(l=>l.cat===recF);
     title=`小记 · 完成记录（${recLabel()}${recF==='all'?'':' · '+catOf(recF).n}）`;
