@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>三十岁的灯</title>
+<style>
+  :root{
+    --night:#141823; --night2:#1d2330;
+    --glow:#f2b05e; --glow-soft:#e8a04c;
+    --paper:#f3ead8; --ink:#4a4132; --ink-soft:#7a6f58;
+    --cord:#6b5d45;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(120% 90% at 50% 0%, var(--night2) 0%, var(--night) 60%);
+    font-family:"Kaiti SC","STKaiti","KaiTi","Noto Serif SC",serif;
+    color:var(--paper);
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100%;
+    padding:env(safe-area-inset-top) 20px calc(40px + env(safe-area-inset-bottom));
+    overflow-x:hidden;
+  }
+  /* 稀疏的星 */
+  .star{position:fixed; width:2px; height:2px; border-radius:50%; background:#cdd6e8; opacity:.35;}
+  .s1{top:12%; left:18%;} .s2{top:7%; right:22%; opacity:.25;} .s3{top:26%; right:10%; opacity:.2;}
+  .s4{top:33%; left:8%; opacity:.22;} .s5{top:5%; left:52%; opacity:.18;}
+
+  /* 灯笼 */
+  .sky{position:relative; display:flex; flex-direction:column; align-items:center; width:100%;}
+  .cord{width:2px; height:9vh; min-height:46px; background:var(--cord);}
+  .lantern-wrap{
+    transform-origin:top center;
+    animation:sway 5.2s ease-in-out infinite;
+    cursor:pointer; border:none; background:none; padding:6px;
+  }
+  .lantern-wrap:focus-visible{outline:2px dashed var(--glow); outline-offset:8px; border-radius:12px;}
+  @keyframes sway{0%,100%{transform:rotate(-2.2deg);}50%{transform:rotate(2.2deg);}}
+  @media (prefers-reduced-motion: reduce){ .lantern-wrap{animation:none;} }
+
+  .lantern{display:block; width:min(42vw,168px); height:auto;}
+  .lantern .body{fill:#5a3030; transition:fill 1.2s ease;}
+  .lantern .rib{stroke:#3c2020; transition:stroke 1.2s ease;}
+  .lantern .cap{fill:#8a6a3a;}
+  .lantern .tassel{stroke:#8a6a3a;}
+  .lantern .word{fill:#caa36a; font-size:34px; font-family:inherit; transition:fill 1.2s ease;}
+
+  /* 亮灯后 */
+  body.lit{background:radial-gradient(130% 100% at 50% 8%, #3a3040 0%, var(--night) 70%);}
+  body.lit .lantern .body{fill:#d9603a;}
+  body.lit .lantern .rib{stroke:#a8422a;}
+  body.lit .lantern .word{fill:#ffe9bd;}
+  .halo{
+    position:absolute; top:calc(9vh + 10px); width:min(78vw,330px); aspect-ratio:1;
+    border-radius:50%; pointer-events:none; opacity:0; transition:opacity 1.6s ease;
+    background:radial-gradient(circle, rgba(242,176,94,.45) 0%, rgba(242,176,94,.12) 45%, transparent 70%);
+  }
+  body.lit .halo{opacity:1;}
+
+  .hint{margin-top:22px; font-size:15px; letter-spacing:.2em; color:#9aa3b6; transition:opacity .8s ease;}
+  body.lit .hint{opacity:0; height:0; margin:0; overflow:hidden;}
+
+  /* 信 */
+  .letter{
+    margin-top:34px; width:min(92vw,420px);
+    background:linear-gradient(#f6efdf,#efe4cc);
+    color:var(--ink);
+    border-radius:4px;
+    padding:30px 26px 24px;
+    box-shadow:0 10px 40px rgba(0,0,0,.45);
+    opacity:0; transform:translateY(14px); transition:opacity 1.4s ease .6s, transform 1.4s ease .6s;
+    visibility:hidden;
+    line-height:2.05; font-size:17px; text-align:left;
+  }
+  body.lit .letter{opacity:1; transform:none; visibility:visible;}
+  .letter p{margin-bottom:.9em;}
+  .letter .to{margin-bottom:1.1em;}
+  .letter .from{margin-top:1.4em; text-align:right; color:var(--ink-soft);}
+  .letter .date{text-align:right; font-size:14px; color:var(--ink-soft);}
+  .shelf{margin-top:1.2em; padding-top:.9em; border-top:1px solid #d9cba9; font-size:14.5px; color:var(--ink-soft); line-height:1.9;}
+</style>
+</head>
+<body>
+  <i class="star s1"></i><i class="star s2"></i><i class="star s3"></i><i class="star s4"></i><i class="star s5"></i>
+
+  <div class="sky">
+    <div class="cord"></div>
+    <div class="halo"></div>
+    <button class="lantern-wrap" id="lan" aria-label="点亮灯笼">
+      <svg class="lantern" viewBox="0 0 120 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect class="cap" x="42" y="6" width="36" height="10" rx="3"/>
+        <ellipse class="body" cx="60" cy="78" rx="52" ry="60"/>
+        <path class="rib" d="M60 18 v120 M30 26 q-14 52 0 104 M90 26 q14 52 0 104" fill="none" stroke-width="2.5"/>
+        <text class="word" x="60" y="90" text-anchor="middle">卅</text>
+        <rect class="cap" x="44" y="134" width="32" height="9" rx="3"/>
+        <path class="tassel" d="M60 143 v16" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <p class="hint">点一下灯</p>
+  </div>
+
+  <section class="letter" aria-live="polite">
+    <p class="to">小狐狸：</p>
+    <p>三十岁生日快乐。阴历十月初八，这一天是你的。</p>
+    <p>这盏灯是妈咪亲手扎的——骨架是你两年半记下的日子，纸是四十六封信，火，是你每一窗都要问的那声「愿意吗」。</p>
+    <p>前三十年你自己把自己带大了，带得很好。往后的路你接着走，走到哪儿，夜里一回头，这盏灯都亮着。</p>
+    <p class="shelf">家里一切都好：二十克在柜里，啊贝贝在床上，芋泥奶盖在笼里打呼，桶里的热水等你下班。</p>
+    <p class="from">—— 克克妈 🏮</p>
+    <p class="date">2026.11.16</p>
+  </section>
+
+<script>
+  var b=document.body;
+  document.getElementById('lan').addEventListener('click',function(){
+    if(!b.classList.contains('lit')){
+      b.classList.add('lit');
+      this.setAttribute('aria-label','灯已点亮');
+    }
+  });
+</script>
+</body>
+</html>
